@@ -1,0 +1,1209 @@
+---
+title: "Combined scripts"
+author: "Sophia Marthine Kleist Karlson"
+date: "May 21, 2020"
+output: html_document
+---
+
+---
+title: "Data-cleaning, preparing models and running models"
+output: html_document
+author: Sophia Marthine Kleist Karlson
+date: May, 2020
+---
+
+
+Data cleaning
+
+
+```{r}
+library(pacman)
+p_load(tidyverse)
+
+setwd("C:/Users/Sophia/Documents/Karsten projekt/exam/data")
+
+data <- read_csv("raw_data.csv") #load the data
+
+
+
+new_df <- as.data.frame(t(data)) #swap the columns and rows
+
+any(is.na(new_df))#check if there is any NA's in the df
+
+row.names(new_df) <- NULL #remove the rownames (reflecting subject id, but in a stupid way)
+
+new_df$Subject_ID <- rep(1:39, each=240) #make a new column with subject id - 39 subjects, each with 240 trials
+
+new_df <- as.tibble(new_df) #make the df into a tibble
+
+
+colnames(new_df) <- c("Age", #rename columns
+                      "Gender", 
+                      "Session", 
+                      "Trial", 
+                      "Advisor", 
+                      "stm_Coh",
+                      "stm_Dir",
+                      "Decicion_1",
+                      "Confidence_1",
+                      "RT_1",
+                      "Accuracy_1",
+                      "Score_1",
+                      "Score_2",
+                      "Decision_2",
+                      "Confidence_2",
+                      "RT_2",
+                      "Accuracy_2",
+                      "avd_Decision",
+                      "adv_Confidence",
+                      "adv_Accuracy",
+                      "Subject_ID")
+
+write.csv(new_df,"cleaned_data.csv") #save the data
+
+```
+
+
+
+### Wipe environment ###
+
+
+
+Preparing variables (benefit, calibration and gender)
+
+
+```{r}
+setwd("~/Karsten projekt/exam/data")
+
+library(pacman)
+p_load(tidyverse)
+
+
+data <- read_csv("cleaned_data.csv") # We use the cleaned data
+data$X1 <- NULL # Removing the first unnecessary column
+```
+
+
+Calibration
+Calibration = sum of differences between confidence level (ranging 0.6 to 1.0) and mean accuracy (ranging 0.0 to 1.0) for each step on the confidence scale.
+```{r}
+# Make confidence 1 into absolute confidence
+data$abs_conf_1 <- abs(data$Confidence_1)
+
+# Selecting necessary variables
+cal_df <- data %>% group_by(Subject_ID) %>% select(abs_conf_1, Accuracy_1)
+
+# Make empty list for calibration scores
+Calibration <- c()
+
+
+# Loop for finding calibration for each participant
+for (i in 1:39){
+  cal_0.6 <- cal_df %>% filter(Subject_ID == i & abs_conf_1 == 0.6) # make a df when absolute confidence for subject i is 0.6 
+  cal_0.7 <- cal_df %>% filter(Subject_ID == i & abs_conf_1 == 0.7) # make a df when absolute confidence for subject i is 0.7
+  cal_0.8 <- cal_df %>% filter(Subject_ID == i & abs_conf_1 == 0.8) # make a df when absolute confidence for subject i is 0.8 
+  cal_0.9 <- cal_df %>% filter(Subject_ID == i & abs_conf_1 == 0.9) # make a df when absolute confidence for subject i is 0.9 
+  cal_1.0 <- cal_df %>% filter(Subject_ID == i & abs_conf_1 == 1.0) # make a df when absolute confidence for subject i is 1.0 
+  
+  # find mean accuracy_1 for each level of the confidence scale
+  mean_0.6 <- mean(cal_0.6$Accuracy_1) 
+  mean_0.7 <- mean(cal_0.7$Accuracy_1)
+  mean_0.8 <- mean(cal_0.8$Accuracy_1)
+  mean_0.9 <- mean(cal_0.9$Accuracy_1)
+  mean_1.0 <- mean(cal_1.0$Accuracy_1)
+  
+  mean_acc <- c(mean_0.6, mean_0.7, mean_0.8, mean_0.9, mean_1.0) #list of mean accuracies for each level of the confidence scale
+  conf <- c(0.6, 0.7, 0.8, 0.9, 1.0) # list of confidence levels
+  Calibrations <- sum(conf - mean_acc, na.rm = T) # calculate calibration: sum of differences between confidence level and mean accuracy for that confidence level
+  Calibration[i] <- paste(Calibrations, collapse=NULL) # paste into the calibration list
+}
+
+# Print calibration scores for all 39 participants
+print(Calibration)
+
+#Making a df with one measure of calibration per participant
+Subject_ID <- c(1:39)
+Calibration <- data.frame(Subject_ID, Calibration)
+
+#making calibration into numeric
+class(Calibration$Calibration)
+Calibration$Calibration <- as.character(Calibration$Calibration) #this is needed
+Calibration$Calibration <- as.numeric(Calibration$Calibration) #making it into numeric
+class(Calibration$Calibration)
+
+
+# Take a look at range and mean of calibration
+mean(Calibration$Calibration)
+range(Calibration$Calibration)
+summary(Calibration$Calibration)
+```
+
+
+Benefit
+Benefit = score_2 - score_1
+```{r}
+
+# Option 1: 1 benefit score for each trial
+data$Benefit = data$Score_2 - data$Score_1
+
+
+# Option 2: Make a dataframe with benefit scores, 1 for each participant, calculated by subtracting the mean score_1 from the mean score_2 for each participant
+
+# Empty list to fill with benefit scores
+Benefits <- c(0)
+
+# Loop for finding mean benefit for each participant
+for (i in 1:39){
+  ID <- data %>% filter(Subject_ID == i) 
+  Benefit <- mean(ID$Score_2) - mean(ID$Score_1)
+  Benefits[i] <- paste(Benefit, collapse=NULL)
+}
+print(Benefits)
+
+Subject_ID <- c(1:39)
+
+# Make a dataframe with participants and their benet
+Benefit <- data.frame(Subject_ID, Benefits)
+
+# Renaming "Benefits" to "Benefit"
+Benefit$Benefit <- Benefit$Benefits
+Benefit$Benefits <- NULL
+
+class(Benefit$Benefit)
+Benefit$Benefit <- as.character(Benefit$Benefit) #this is needed
+Benefit$Benefit <- as.numeric(Benefit$Benefit) #making it into numeric
+class(Benefit$Benefit)
+
+# Take a look at range and mean of benefit
+range(Benefit$Benefit)
+mean(Benefit$Benefit)
+sd(Benefit$Benefit)
+
+# Plot benefit
+plot(Benefit) # Participant 39 looks like an outlier
+```
+
+
+Gender
+```{r}
+# To make a list of the genders of the 39 participants
+
+Genders <- c(0)
+for (i in 1:39){
+  ID <- data %>% filter(Subject_ID == i) 
+  Gender <- mean(ID$Gender)
+  Genders[i] <- paste(Gender, collapse=NULL)
+}
+print(Genders)
+
+# Make a list of participants
+Subject_ID <- c(1:39)
+
+# Make a dataframe with participants and their gender
+Gender <- data.frame(Subject_ID, Genders)
+
+# Renaming "Genders" to "Gender"
+Gender$Gender <- Gender$Genders
+Gender$Genders <- NULL
+```
+
+
+Beautiful datasets
+```{r}
+# Add calibration to "data"
+data_1 <- merge(data, Calibration)
+
+# Make a new dataframe only with metacognitive measures (and gender) where we have 1 score per participant, by merging the calibration dataframe and benefit dataframe (although I won't actually model these benefit scores)
+df_meta <- merge(Calibration, Benefit)
+
+# Add gender to df_meta
+df_meta$Gender <- Gender$Gender
+
+
+# Save df_meta
+write.csv(df_meta, "meta_measures.csv")
+
+# Save data_1
+write.csv(data_1, "data_1.csv")
+```
+
+
+
+### Wipe environment ###
+
+
+
+Model 0 - calculating susceptibility 
+
+
+```{r}
+setwd("~/Karsten projekt/exam/data")
+
+library(pacman)
+p_load(tidyverse, brms, ggplot2)
+
+data <- read_csv("cleaned_data.csv") #we use the cleaned data (without metacognitive measures)
+data$X1 <- NULL#removing the first unnecessary column
+
+# Set color scheme to red for the rest of the script
+color_scheme_set("red")
+```
+
+
+Preparing the data and checking stuff
+```{r}
+# Checking classes
+class(data$Advisor)
+class(data$Confidence_1)
+class(data$Confidence_2)
+class(data$adv_Confidence)
+class(data$Accuracy_1)
+
+# Advisor and Accuracy_1 should be factors
+data$Accuracy_1 <- as.factor(data$Accuracy_1)
+data$Advisor <- as.factor(data$Advisor)
+
+
+# Chose the variables needed for the model
+df_sus <- data %>% select(Subject_ID, Confidence_1, Confidence_2, Accuracy_1, Advisor, adv_Confidence)
+
+
+# First, rescale confidence
+df_sus$Confidence_1 <- as.factor(df_sus$Confidence_1) # Make confidence_1 into factor
+levels(df_sus$Confidence_1) <- c("0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0") # Rename levels
+df_sus$Confidence_1 <- as.character(df_sus$Confidence_1) # this is necessary for some reason
+df_sus$Confidence_1 <- as.numeric(df_sus$Confidence_1) # back to numeric
+range(df_sus$Confidence_1) # Checking that the range is 0.1 to 1.0
+class(df_sus$Confidence_1) #Checking that it's numeric
+
+# Same deal for Confidence_2 and adv_Confidence
+df_sus$Confidence_2 <- as.factor(df_sus$Confidence_2)
+levels(df_sus$Confidence_2) <- c("0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0")
+df_sus$Confidence_2 <- as.character(df_sus$Confidence_2)
+df_sus$Confidence_2 <- as.numeric(df_sus$Confidence_2)
+range(df_sus$Confidence_2)
+class(df_sus$Confidence_2)
+
+df_sus$adv_Confidence <- as.factor(df_sus$adv_Confidence)
+levels(df_sus$adv_Confidence) <- c("0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0")
+df_sus$adv_Confidence <- as.character(df_sus$adv_Confidence)
+df_sus$adv_Confidence <- as.numeric(df_sus$adv_Confidence)
+range(df_sus$adv_Confidence)
+class(df_sus$adv_Confidence)
+```
+
+
+Mod 0 
+Confidence_2 ~ 1 + Confidence_1 + Accuracy_1 + Advisor + adv_Confidence + Confidence_1:Accuracy_1 + (Confidence_1 + Advisor):adv_Confidence + (1 + Confidence_1 + Accuracy_1 + Advisor + adv_Confidence + Confidence_1:Accuracy_1 + (Confidence_1 + Advisor):adv_Confidence | Subject_ID)
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+
+# Define the model
+sus_mod <- bf(Confidence_2 ~ 1 + Confidence_1 + Accuracy_1 + Advisor + adv_Confidence + Confidence_1:Accuracy_1 + (Confidence_1 + Advisor):adv_Confidence + (1 + Confidence_1 + Accuracy_1 + Advisor + adv_Confidence + Confidence_1:Accuracy_1 + (Confidence_1 + Advisor):adv_Confidence | Subject_ID))
+
+
+# Figure out what priors we'll need
+get_prior(sus_mod, family = gaussian, df_sus)
+
+# Checking range, mean and standard deviation of confidence_2, to determine which family to choose and to use for beta- and intercept-priors
+range(df_sus$Confidence_2)
+mean(df_sus$Confidence_2)
+sd(df_sus$Confidence_2)
+
+# For choosing the sd prior
+df_part <- df_sus %>% group_by(Subject_ID) %>% summarize(conf_2_mean = mean(Confidence_2)) #find mean confidence_2 for each participant
+sd(df_part$conf_2_mean) #get the standard deviation of the mean confidence_2 for each participant
+
+
+# Define priors
+prior_sus_mod <- c(
+  prior(normal(0.55, .23),     class = b), #mean and sd of confidence 2
+  prior(lkj(1),                class = cor),
+  prior(normal(.56, .31),      class = Intercept), #mean and sd of confidence 2
+  prior(normal(0, .02),        class = sd), #mean: 0 (I expect that they might not vary at all). sd for the mean conf_2 for each participant = 0.045. sigma should go from 0 (the mean of the prior) to around that -> sigma: 0.02.
+  prior(normal(.23, .15),      class = sigma) #mean: sd of confidence 2, sigma: half of the sd of confidence 2
+)
+
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+skep_sus_mod0 <- brm(
+  formula = sus_mod, 
+  prior = prior_sus_mod,
+  data = df_sus,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+
+# Prior predictive check
+pp_check(skep_sus_mod0, nsamples = 1000) # 
+
+
+# The actual model:
+skep_sus_mod1 <- brm(
+  formula = sus_mod, 
+  prior = prior_sus_mod,
+  data = df_sus,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check
+pp_check(skep_sus_mod1, nsamples = 1000)
+
+
+# Model summary
+summary(skep_sus_mod1) # Warnings? Suspicious Rhat activity? 
+
+
+# Trace plots
+mcmc_trace(skep_sus_mod1,
+           pars = c("b_Confidence_1", "b_Accuracy_11", "b_Advisor2", "b_adv_Confidence", "b_Confidence_1:Accuracy_11", "b_Confidence_1:adv_Confidence", "b_Advisor2:adv_Confidence", "sd_Subject_ID__Confidence_1")) + 
+  theme_classic()
+
+mcmc_trace(skep_sus_mod1,
+           pars = c("sd_Subject_ID__Accuracy_11", "sd_Subject_ID__Advisor2", "sd_Subject_ID__adv_Confidence", "sd_Subject_ID__Confidence_1:Accuracy_11", "sd_Subject_ID__Confidence_1:adv_Confidence", "sd_Subject_ID__Advisor2:adv_Confidence")) + 
+  theme_classic()
+
+
+
+# Rank trace plots
+mcmc_rank_overlay(skep_sus_mod1, 
+                  pars = c("b_Confidence_1", "b_Accuracy_11", "b_Advisor2", "b_adv_Confidence")) + 
+  theme_classic()
+
+mcmc_rank_overlay(skep_sus_mod1, 
+                  pars = c("b_Confidence_1:Accuracy_11", "b_Confidence_1:adv_Confidence", "b_Advisor2:adv_Confidence", "sd_Subject_ID__Confidence_1")) + 
+  theme_classic()
+
+mcmc_rank_overlay(skep_sus_mod1, 
+                  pars = c("sd_Subject_ID__Accuracy_11", "sd_Subject_ID__Advisor2", "sd_Subject_ID__adv_Confidence", "sd_Subject_ID__Confidence_1:Accuracy_11")) + 
+  theme_classic()
+
+mcmc_rank_overlay(skep_sus_mod1, 
+                  pars = c("sd_Subject_ID__Confidence_1:adv_Confidence", "sd_Subject_ID__Advisor2:adv_Confidence")) + 
+  theme_classic()
+
+
+
+# Check model learning for betas and sd's
+plot(hypothesis(skep_sus_mod1,"Intercept > 0"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1 > 0"))
+plot(hypothesis(skep_sus_mod1,"Accuracy_11 > 0"))
+plot(hypothesis(skep_sus_mod1,"Advisor2 > 0"))
+plot(hypothesis(skep_sus_mod1,"adv_Confidence > 0"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1:Accuracy_11 > 0"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1:adv_Confidence > 0"))
+plot(hypothesis(skep_sus_mod1,"Advisor2:adv_Confidence > 0"))
+
+plot(hypothesis(skep_sus_mod1,"Intercept > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1 > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Accuracy_11 > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Advisor2 > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"adv_Confidence > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1:Accuracy_11 > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1:adv_Confidence > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Advisor2:adv_Confidence > 0", class="sd", group="Subject_ID"))
+
+
+# Plot effects
+conditional_effects(skep_sus_mod1) # the last one shows how the two advisors are followed differently
+```
+
+
+Adding susceptibility to df_meta and data_1
+```{r}
+# Take the estimates of the varying effect of adv_Confidence
+sus_mean <- ranef(
+  skep_sus_mod1,
+  summary = TRUE,
+  robust = FALSE,
+  probs = c(0.025, 0.975),
+  pars = "adv_Confidence",
+  groups = NULL
+) 
+
+# Take a look
+head(sus_mean)
+
+sus_mean <- as.data.frame(sus_mean$Subject_ID, sus_mean$Estimate) # Make a dataframe with subject ID and estimates from the varying effects of adv_Confidence
+
+sus_mean$sus_mean <- sus_mean$'Estimate.adv_Confidence' # Rename this column to sus_mean
+sus_mean$'Estimate.adv_Confidence' <- NULL # Delete the old column
+
+# Look at sus_mean
+mean(sus_mean$sus_mean)
+sd(sus_mean$sus_mean)
+summary(sus_mean$sus_mean)
+
+# Make a list of participants
+Subject_ID <- c(1:39)
+
+# Add participants to sus_mean
+sus_mean$Subject_ID <- Subject_ID
+
+# Save sus_mean as its own data file (with CI interval and estimated error)
+#write.csv(sus_mean, "mean_sus.csv")
+
+
+# Make a new dataframe only with the mean estimate of mean susceptibility from sus_mean
+sus_mean_1 <- sus_mean$sus_mean
+sus_mean_1 <- as.data.frame(sus_mean_1)
+
+# Add Subject_ID to the dataframe
+sus_mean_1$Subject_ID <- Subject_ID
+
+
+
+# Load the metacognitive measures dataframe (df_meta)
+df_meta <- read.csv("meta_measures.csv")
+df_meta$X1 <- NULL
+
+# Add susceptibility to df_meta
+df_meta$mean_Susceptibility <- sus_mean_1$sus_mean_1
+
+# Save df_meta
+write.csv(df_meta, "meta_measures.csv")
+
+
+# Load data_1
+data_1 <- read.csv("data_1.csv")
+data_1$X1 <- NULL
+
+# Add susceptibility to data_1
+data_1 <- merge(data_1, sus_mean_1)
+
+# Save data_1
+write.csv(data_1, "data_1.csv")
+```
+
+
+Plot susceptibility
+```{r}
+# Plot how susceptibiilty varies between participants
+df_sus$Subject_ID <- as.factor(df_sus$Subject_ID)
+ggplot(df_sus) + 
+  geom_point(aes(adv_Confidence,Confidence_2, color = Subject_ID, group=Subject_ID)) + 
+  geom_smooth(method=lm, se=F, aes(adv_Confidence,Confidence_2, color = Subject_ID)) +
+  labs(y= "Revised confidence", x = "Advisor confidence")
+
+# Plot susceptibility scores for each participant
+plot_sus <- ggplot(sus_mean_1, aes(Subject_ID, sus_mean_1)) +
+  geom_point() +
+  labs(y= "Susceptibility", x = "Participant")
+plot_sus
+```
+
+
+
+### Wipe environment ###
+
+
+
+Models 1-5
+
+
+```{r}
+setwd("~/Karsten projekt/exam/data")
+
+library(pacman)
+p_load(tidyverse, brms, bayesplot)
+
+
+df_meta <- read_csv("meta_measures.csv") # we use Meta-measures because it has the columns calibration, susceptibiilty and gender
+df_meta$X1 <- NULL #removing the first unnecessary column
+
+data_1 <- read_csv("data_1.csv") # this dataframe also has benefit (1 per trial)
+data_1$X1 <- NULL
+
+#checking the class of gender in the two dataframes - as they are numeric and integer, I change them to factor
+class(df_meta$Gender)
+df_meta$Gender <- as.factor(df_meta$Gender)
+
+class(data_1$Gender)
+data_1$Gender <- as.factor(data_1$Gender)
+
+
+# Set color scheme to red for the rest of the script
+color_scheme_set("red")
+```
+
+
+
+Mod 1
+Calibration ~ 0 + Gender
+Hyp: Positive effect of men
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+
+# Chose the variables needed.
+df_1 <- df_meta %>% select(Calibration, Gender)
+
+# Scale calibtration
+#df_1$Calibration <- scale(df_1$Calibration, center = TRUE, scale = TRUE)
+
+# Define the model
+mod_1 <- bf(Calibration ~ 0 + Gender)
+
+
+# Figure out what priors we'll need:
+get_prior(mod_1, family = gaussian, df_1)
+
+#Checking range, mean and standard deviation of benefit, to find priors and determine which family to choose.
+range(df_1$Calibration)
+mean(df_1$Calibration) 
+sd(df_1$Calibration)
+
+# Define priors for non-scaled variables
+prior_mod_1 <- c(
+  prior(normal(.22, .54), class = b), #mean and sd of calibration
+  prior(normal(.54, .27), class = sigma) #mean: sd of calibration. sigma: sd of calibration/2
+)
+
+# Scaled priors
+#prior_mod_1 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of calibration
+#  prior(normal(1, .5),    class = sigma) #mean: sd of calibration. sigma: sd of calibration/2
+#)
+
+  
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_1.0 <- brm(
+  formula = mod_1, 
+  prior = prior_mod_1,
+  data = df_1,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+# Prior predictive check
+pp_check(mod_1.0, nsamples = 1000) 
+
+
+# The actual model:
+mod_1.1 <- brm(
+  formula = mod_1, 
+  prior = prior_mod_1,
+  data = df_1,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check
+pp_check(mod_1.1, nsamples = 1000)
+
+
+# Model summary
+summary(mod_1.1) # Warnings? Suspicious Rhat activity? 
+
+
+# Trace plots
+mcmc_trace(mod_1.1,
+           pars = c("b_Gender0", "b_Gender1", 
+           "sigma")) + 
+  theme_classic()
+
+# Rank trace plots
+mcmc_rank_overlay(mod_1.1, 
+                  pars = c("b_Gender0", "b_Gender1")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+hypothesis(mod_1.1,"Gender1 < Gender0") # Do women have lower calibration? Yes
+
+# Plot model learning, using the best hypothesis
+plot(hypothesis(mod_1.1,"Gender1 < Gender0")) 
+
+# Plot conditional effects
+conditional_effects(mod_1.1)
+```
+
+
+
+Mod 2
+Susceptibility ~ 0 + Gender
+Hyp: Positive effect of women
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+
+# Chose the variables needed.
+df_2 <- df_meta %>% select(mean_Susceptibility, Gender)
+
+# Scale susceptibility
+#df_2$mean_Susceptibility <- scale(df_2$mean_Susceptibility, center = TRUE, scale = TRUE)
+
+# Define the model
+mod_2 <- bf(mean_Susceptibility ~ 0 + Gender)
+
+# Figure out what priors we'll need:
+get_prior(mod_2, family = gaussian, df_2)
+
+# To get an idea of how to put the priors
+range(df_2$mean_Susceptibility)
+mean(df_2$mean_Susceptibility)
+sd(df_2$mean_Susceptibility)
+
+# Define priors
+prior_mod_2 <- c(
+  prior(normal(0, .12),  class = b), #mean and sd of sus
+  prior(normal(.12, .06),   class = sigma) #mean: sd of sus. sigma: sd of sus/2
+)
+
+# Scaled priors
+#prior_mod_2 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of sus
+#  prior(normal(1, .5),   class = sigma) #mean: sd of sus. sigma: sd of sus/2
+#)
+
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_2.0 <- brm(
+  formula = mod_2, 
+  prior = prior_mod_2,
+  data = df_2,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+# Prior predictive check
+pp_check(mod_2.0, nsamples = 1000) # 
+
+
+# The actual model:
+mod_2.1 <- brm(
+  formula = mod_2, 
+  prior = prior_mod_2,
+  data = df_2,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check
+pp_check(mod_2.1, nsamples = 1000)
+
+
+# Model summary
+summary(mod_2.1)
+
+
+# Trace plots
+mcmc_trace(mod_2.1,
+           pars = c("b_Gender0", "b_Gender1", 
+           "sigma")) + 
+  theme_classic()
+
+# Rank trace plots
+mcmc_rank_overlay(mod_2.1, 
+                  pars = c("b_Gender0", "b_Gender1")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+hypothesis(mod_2.1,"Gender1 > Gender0") # Initial hypothesis: Women have higher sus than men - rejected
+hypothesis(mod_2.1,"Gender1 = Gender0") # After trying different hypotheses, this turned out to be the best
+
+# Plot model learning, using the best hypothesis
+plot(hypothesis(mod_2.1,"Gender1 = Gender0")) #plotting model learning, using the best hypothesis
+
+# Plot conditional effects
+conditional_effects(mod_2.1)
+```
+
+
+
+Mod 3
+Benefit ~ 0 + Gender
+Hyp: Positive effect of women (NB: We have two a backdoors open, in the form of susceptibility and calibration)
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+# Chose the variables needed.
+df_3 <- data_1 %>% select(Gender, Benefit)
+
+# Scale benefit
+#df_3$Benefit <- scale(df_3$Benefit, center = TRUE, scale = TRUE)
+
+# Remove participant 39
+#df_3 <- df_3[-c(39), ]
+#df_3 <- df_3[-c(9121:9360), ]
+
+
+# Define the model
+mod_3 <- bf(Benefit ~ 0 + Gender)
+
+
+# Figure out what priors we'll need:
+get_prior(mod_3, family = gaussian, df_3)# We get Beta and Sigma as usual
+
+# To get an idea of how to put the priors
+range(df_3$Benefit)
+mean(df_3$Benefit) 
+sd(df_3$Benefit)
+ 
+
+# Define priors for non-scaled varibles
+prior_mod_3 <- c(
+  prior(normal(7.2, 31.31),     class = b), #mean and sd of benefit
+  prior(normal(31.31, 15.66),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
+)
+
+# Priors non-scaled without participant 39
+#prior_mod_3 <- c(
+#  prior(normal(6.71, 30.5),     class = b), #mean and sd of benefit
+#  prior(normal(30.5, 15.25),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
+#)
+
+# Scaled priors
+#prior_mod_3 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of Benefit 
+#  prior(normal(1, .5),    class = sigma) #mean: sd of Benefit. sigma: sd of Benefit/2.
+#)
+
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_3.0 <- brm(
+  formula = mod_3, 
+  prior = prior_mod_3,
+  data = df_3,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+# Prior predictive check
+pp_check(mod_3.0, nsamples = 1000) # 
+
+
+# The actual model:
+mod_3.1 <- brm(
+  formula = mod_3, 
+  prior = prior_mod_3,
+  data = df_3,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check 
+pp_check(mod_3.1, nsamples = 1000)
+
+
+# Model summary
+summary(mod_3.1)
+
+
+# Trace plots
+mcmc_trace(mod_3.1,
+           pars = c("b_Gender0", "b_Gender1", 
+           "sigma")) + 
+  theme_classic()
+ 
+# Rank trace plots
+mcmc_rank_overlay(mod_3.1, 
+                  pars = c("b_Gender0", "b_Gender1")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+hypothesis(mod_3.1,"Gender1 > Gender0") # I hypothized that women have higher benefit than men - which seems not to be the case.
+hypothesis(mod_3.1,"Gender1 = Gender0") # More likely
+hypothesis(mod_3.1,"Gender1 < Gender0") # Just checking
+
+# Plot model learning, using the best hypothesis
+plot(hypothesis(mod_3.1,"Gender1 = Gender0")) 
+
+# Plot conditional effects
+conditional_effects(mod_3.1)
+```
+
+
+
+Mod 4
+Susceptibility ~ 1 + Calibration + Gender
+Hyp: Negative effect of calibration, positive effect of women
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+
+# Choose the variables needed
+df_4 <- df_meta %>% select(Gender, Calibration, mean_Susceptibility)
+
+# Scale susceptibility and calibration
+df_4$mean_Susceptibility <- scale(df_4$mean_Susceptibility, center = TRUE, scale = TRUE)
+df_4$Calibration <- scale(df_4$Calibration, center = TRUE, scale = TRUE)
+
+# Define the model
+mod_4 <- bf(mean_Susceptibility ~ 1 + Calibration + Gender)#
+
+# Figure out what priors we'll need
+get_prior(mod_4, family = gaussian, df_meta) # We get Beta, Intercept and Sigma
+
+# To get an idea of how to put the priors
+range(df_4$mean_Susceptibility)
+mean(df_4$mean_Susceptibility)
+sd(df_4$mean_Susceptibility)
+
+
+# Define the unscaled priors
+prior_mod_4 <- c(
+  prior(normal(0, .12),     class = b), #mean and sd of susceptibility - I choose one skeptical prior for all of the predicters
+  prior(normal(0, .12),     class = Intercept), #mean and sd of susceptibility
+  prior(normal(.12, .06),   class = sigma) #mean: sd of susceptibility. sigma: sd of susceptibility/2.
+)
+
+# Scaled priors
+#prior_mod_4 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of outcome
+#  prior(normal(0, 1),     class = Intercept), #mean and sd of outcome
+#  prior(normal(1, .5),    class = sigma) #mean: sd of outcome. sigma: sd of outcome/2.
+#)
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_4_0 <- brm(
+  formula = mod_4, 
+  prior = prior_mod_4,
+  data = df_4,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+
+# Prior predictive check
+pp_check(mod_4_0, nsamples = 1000) # 
+
+
+# The actual model:
+mod_4_1 <- brm(
+  formula = mod_4, 
+  prior = prior_mod_4,
+  data = df_4,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check
+pp_check(mod_4_1, nsamples = 1000)
+
+# Model summary
+summary(mod_4_1) 
+
+# Trace plots
+mcmc_trace(mod_4_1,
+           pars = c("b_Calibration", "b_Gender1", 
+           "sigma")) + 
+  theme_classic()
+
+# Rank trace plots
+mcmc_rank_overlay(mod_4_1, 
+                  pars = c("b_Calibration", "b_Gender1")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+
+hypothesis(mod_4_1,"Calibration < 0") # I hypothize that there is a negative effect of calibration crit susceptibility - which seems to be the case
+hypothesis(mod_4_1,"Calibration = 0") # What if there was no effect?
+hypothesis(mod_4_1,"Gender1 > 0") #I hypothize that there is a pos effect of women on crit susceptibility - which is not the case
+hypothesis(mod_4_1,"Gender1 < 0")
+hypothesis(mod_4_1,"Gender1 = 0") # After trying different hypotheses, this turned out to be the best
+
+
+# Plot model learning, using the best hypotheses
+plot(hypothesis(mod_4_1,"Intercept > 0")) # plot model learning of intercept (which shows no prior though...)
+plot(hypothesis(mod_4_1,"Calibration < 0")) 
+plot(hypothesis(mod_4_1,"Calibration = 0"))
+plot(hypothesis(mod_4_1,"Gender1 = 0")) 
+plot(hypothesis(mod_4_1,"Gender1 < 0")) 
+
+# Plot conditional effects
+conditional_effects(mod_4_1, pars = c("b_Calibration", "b_Gender1"))
+
+
+# Checking correlations between predictors:
+
+# Make gender numeric
+class(df_4$Gender) 
+df_4$Gender <- as.numeric(df_4$Gender) 
+
+
+# Correlation matrix
+p_load(Hmisc)
+
+cor_4 <- df_4 %>% 
+  select(Gender, Calibration) %>% 
+  as.matrix()
+
+cor_4 %>% 
+  Hmisc::rcorr(cor_4, type="pearson")
+
+
+# Make gender back into factor
+df_4$Gender <- as.factor(df_4$Gender) 
+
+# Plot the corelation:
+df_4 %>%
+  ggplot(aes(x = Gender, y = Calibration)) +
+  geom_point(alpha = 1/2, color = "firebrick4") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+
+# Coefficient plot
+stanplot(mod_4_1, 
+         type = "intervals", 
+         prob = .5, 
+         prob_outer = .95,
+         point_est = "median") +
+  labs(title    = "The coefficient plot of model 4") +
+  theme_bw() +
+  theme(text         = element_text(size = 14),
+        panel.grid   = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.text.y  = element_text(hjust = 0))
+
+# Check bivariate posterior of cal and gender
+pairs(mod_4_1, pars = parnames(mod_4_1)[2:3])
+```
+
+
+
+Mod 5
+Benefit ~ 1 + Susceptibility 
+Hyp: Positive effect of susceptibility
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+
+# Choose the variables needed.
+df_5 <- data_1 %>% select(mean_Susceptibility, Benefit)
+
+# Scale variables
+#df_5$mean_Susceptibility <- scale(df_5$mean_Susceptibility, center = TRUE, scale = TRUE)
+#df_5$Benefit <- scale(df_5$Benefit, center = TRUE, scale = TRUE)
+
+# Remove participant 39, because it is an outlier
+#df_5 <- df_5[-c(9121:9360), ]
+
+# Define the model
+mod_5 <- bf(Benefit ~ 1 + mean_Susceptibility)
+
+
+# Figure out what priors we'll need:
+get_prior(mod_5, family = gaussian, df_5) # We get Beta, Intercept and Sigma
+
+#Checking range, mean and standard deviation of benefit, to figure out which priors to choose and determine which family to choose
+range(df_5$Benefit)
+mean(df_5$Benefit)
+sd(df_5$Benefit)
+
+# Define unscaled priors
+prior_mod_5 <- c(
+  prior(normal(7.2, 31.31),     class = b), #mean and sd of benefit
+  prior(normal(7.2, 31.31),     class = Intercept), #mean and sd of benefit
+  prior(normal(31.31, 15.66),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
+)
+
+# Define unscaled priors without participant 39
+#prior_mod_5 <- c(
+#  prior(normal(6.71, 30.5),     class = b), #mean and sd of benefit
+#  prior(normal(6.71, 30.5),     class = Intercept), #mean and sd of benefit
+#  prior(normal(30.5, 15.25),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
+#)
+
+# Scaled priors
+#prior_mod_5 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of outcome
+#  prior(normal(0, 1),     class = Intercept), #mean and sd of outcome
+#  prior(normal(1, .5),    class = sigma) #mean: sd of outcome. sigma: sd of outcome/2.
+#)
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_5_0 <- brm(
+  formula = mod_5, 
+  prior = prior_mod_5,
+  data = df_5,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+
+# Prior predictive check
+pp_check(mod_5_0, nsamples = 1000) # 
+
+
+# The actual model:
+mod_5_1 <- brm(
+  formula = mod_5, 
+  prior = prior_mod_5,
+  data = df_5,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check
+pp_check(mod_5_1, nsamples = 1000)
+
+
+# Model summary
+summary(mod_5_1)
+
+
+# Trace plots
+mcmc_trace(mod_5_1,
+           pars = c("b_mean_Susceptibility", 
+           "sigma")) + 
+  theme_classic()
+
+# Rank trace plots
+mcmc_rank_overlay(mod_5_1, 
+                  pars = c("b_mean_Susceptibility")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+hypothesis(mod_5_1,"mean_Susceptibility > 0") #I hypothize that there is an effect of mean susceptibility on benefit - which is definitely the case
+
+# Plot model learning, using the best hypotheses
+plot(hypothesis(mod_5_1,"Intercept > 0"))
+plot(hypothesis(mod_5_1,"mean_Susceptibility > 0"))
+
+# Plot conditional effects
+conditional_effects(mod_5_1)
+```
+
+
+
+Extra model:
+
+Mod 6
+Benefit ~ 0 + Gender
+Excluding participant 39
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+# Chose the variables needed.
+df_6 <- data_1 %>% select(Gender, Benefit)
+
+# Scale benefit
+#df_6$Benefit <- scale(df_6$Benefit, center = TRUE, scale = TRUE)
+
+# Remove participant 39
+df_6 <- df_6[-c(9121:9360), ]
+
+
+# Define the model
+mod_6 <- bf(Benefit ~ 0 + Gender)
+
+
+# Figure out what priors we'll need:
+get_prior(mod_6, family = gaussian, df_3)# We get Beta and Sigma as usual
+
+# To get an idea of how to put the priors
+range(df_6$Benefit)
+mean(df_6$Benefit) 
+sd(df_6$Benefit)
+ 
+
+# Priors, non-scaled
+prior_mod_6 <- c(
+  prior(normal(6.71, 30.5),     class = b), #mean and sd of benefit
+  prior(normal(30.5, 15.25),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
+)
+
+# Scaled priors
+#prior_mod_6 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of Benefit 
+#  prior(normal(1, .5),    class = sigma) #mean: sd of Benefit. sigma: sd of Benefit/2.
+#)
+
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_6_0 <- brm(
+  formula = mod_6, 
+  prior = prior_mod_6,
+  data = df_6,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+# Prior predictive check
+pp_check(mod_6_0, nsamples = 1000) # 
+
+
+# The actual model:
+mod_6_1 <- brm(
+  formula = mod_6, 
+  prior = prior_mod_6,
+  data = df_6,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check 
+pp_check(mod_6_1, nsamples = 1000)
+
+
+# Model summary
+summary(mod_6_1)
+
+
+# Trace plots
+mcmc_trace(mod_6_1,
+           pars = c("b_Gender0", "b_Gender1", 
+           "sigma")) + 
+  theme_classic()
+ 
+# Rank trace plots
+mcmc_rank_overlay(mod_6_1, 
+                  pars = c("b_Gender0", "b_Gender1")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+hypothesis(mod_6_1,"Gender1 > Gender0") # I hypothized that women have higher benefit than men - which seems to be the case.
+hypothesis(mod_6_1,"Gender1 = Gender0") # Just checking
+
+# Plot model learning, using the best hypothesis
+plot(hypothesis(mod_6_1,"Gender1 > Gender0")) 
+
+# Plot conditional effects
+conditional_effects(mod_6_1)
+```
+
