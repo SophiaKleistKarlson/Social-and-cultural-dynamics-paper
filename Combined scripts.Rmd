@@ -1114,7 +1114,10 @@ Excluding participant 39
 # Set seed so that the analysis can be re-run and give the same results
 set.seed(555)
 
-# Chose the variables needed.
+# Look at the average benefit of each participant, in z-scores - participant 39 definitely looks like an outlier
+df_meta$Ben_z_scores <- scale(df_meta$Benefit, center = TRUE, scale = TRUE)
+
+# Chose the variables needed
 df_6 <- data_1 %>% select(Gender, Benefit)
 
 # Scale benefit
