@@ -1207,3 +1207,9 @@ plot(hypothesis(mod_6_1,"Gender1 > Gender0"))
 conditional_effects(mod_6_1)
 ```
 
+
+Citing RStudio
+```{r}
+RStudio.Version()
+```
+
