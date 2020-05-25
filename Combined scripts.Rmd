@@ -146,6 +146,11 @@ Benefit = score_2 - score_1
 # Option 1: 1 benefit score for each trial
 data$Benefit = data$Score_2 - data$Score_1
 
+# Take a look at range and mean of benefit
+range(data$Benefit)
+mean(data$Benefit)
+sd(data$Benefit)
+
 
 # Option 2: Make a dataframe with benefit scores, 1 for each participant, calculated by subtracting the mean score_1 from the mean score_2 for each participant
 
@@ -162,7 +167,7 @@ print(Benefits)
 
 Subject_ID <- c(1:39)
 
-# Make a dataframe with participants and their benet
+# Make a dataframe with participants and their benefit
 Benefit <- data.frame(Subject_ID, Benefits)
 
 # Renaming "Benefits" to "Benefit"
@@ -174,13 +179,16 @@ Benefit$Benefit <- as.character(Benefit$Benefit) #this is needed
 Benefit$Benefit <- as.numeric(Benefit$Benefit) #making it into numeric
 class(Benefit$Benefit)
 
-# Take a look at range and mean of benefit
+# Take a look at range and mean of average benefit
 range(Benefit$Benefit)
 mean(Benefit$Benefit)
 sd(Benefit$Benefit)
 
-# Plot benefit
+# Plot average benefit of each participant
 plot(Benefit) # Participant 39 looks like an outlier
+
+# Look at the average benefit in z-scores - participant 39 definitely looks like an outlier
+Benefit$Ben_z_scores <- scale(Benefit$Benefit, center = TRUE, scale = TRUE)
 ```
 
 
@@ -1114,8 +1122,6 @@ Excluding participant 39
 # Set seed so that the analysis can be re-run and give the same results
 set.seed(555)
 
-# Look at the average benefit of each participant, in z-scores - participant 39 definitely looks like an outlier
-df_meta$Ben_z_scores <- scale(df_meta$Benefit, center = TRUE, scale = TRUE)
 
 # Chose the variables needed
 df_6 <- data_1 %>% select(Gender, Benefit)
