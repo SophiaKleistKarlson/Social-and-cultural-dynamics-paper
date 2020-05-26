@@ -1,0 +1,588 @@
+---
+title: "Models 1-5"
+author: "Sophia Kleist Karlson"
+date: "26 maj 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Models 1-5
+
+
+```{r}
+setwd("~/Karsten projekt/exam/data")
+
+library(pacman)
+p_load(tidyverse, brms, bayesplot)
+
+
+df_meta <- read_csv("meta_measures.csv") # we use Meta-measures because it has the columns calibration, susceptibiilty and gender
+df_meta$X1 <- NULL #removing the first unnecessary column
+
+data_1 <- read_csv("data_1.csv") # this dataframe also has benefit (1 per trial)
+data_1$X1 <- NULL
+
+#checking the class of gender in the two dataframes - as they are numeric and integer, I change them to factor
+class(df_meta$Gender)
+df_meta$Gender <- as.factor(df_meta$Gender)
+
+class(data_1$Gender)
+data_1$Gender <- as.factor(data_1$Gender)
+
+
+# Set color scheme to red for the rest of the script
+color_scheme_set("red")
+```
+
+
+
+Mod 1
+Calibration ~ 0 + Gender
+Hyp: Positive effect of men
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+
+# Chose the variables needed.
+df_1 <- df_meta %>% select(Calibration, Gender)
+
+# Z-score calibtration
+#df_1$Calibration <- scale(df_1$Calibration, center = TRUE, scale = TRUE)
+
+# Define the model
+mod_1 <- bf(Calibration ~ 0 + Gender)
+
+
+# Figure out what priors we'll need:
+get_prior(mod_1, family = gaussian, df_1)
+
+#Checking range, mean and standard deviation of benefit, to find priors and determine which family to choose.
+range(df_1$Calibration)
+mean(df_1$Calibration) 
+sd(df_1$Calibration)
+
+# Define priors for unscaled variables
+prior_mod_1 <- c(
+  prior(normal(.22, .54), class = b), #mean and sd of calibration
+  prior(normal(.54, .27), class = sigma) #mean: sd of calibration. sigma: sd of calibration/2
+)
+
+# Z-scored priors
+#prior_mod_1 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of Z-scored calibration
+#  prior(normal(1, .5),    class = sigma) #mean: sd of Z-scored calibration. sigma: sd of Z-scored calibration/2
+#)
+
+  
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_1.0 <- brm(
+  formula = mod_1, 
+  prior = prior_mod_1,
+  data = df_1,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+# Prior predictive check
+pp_check(mod_1.0, nsamples = 1000) 
+
+
+# The actual model:
+mod_1.1 <- brm(
+  formula = mod_1, 
+  prior = prior_mod_1,
+  data = df_1,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check
+pp_check(mod_1.1, nsamples = 1000)
+
+
+# Model summary
+summary(mod_1.1) # Warnings? Suspicious Rhat activity? 
+
+
+# Trace plots
+mcmc_trace(mod_1.1,
+           pars = c("b_Gender0", "b_Gender1", 
+           "sigma")) + 
+  theme_classic()
+
+# Rank trace plots
+mcmc_rank_overlay(mod_1.1, 
+                  pars = c("b_Gender0", "b_Gender1")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+hypothesis(mod_1.1,"Gender1 < Gender0") # Do women have lower calibration? Yes
+
+# Plot model learning, using the best hypothesis
+plot(hypothesis(mod_1.1,"Gender1 < Gender0")) 
+
+# Plot conditional effects
+conditional_effects(mod_1.1)
+```
+
+
+
+Mod 2
+Susceptibility ~ 0 + Gender
+Hyp: Positive effect of women
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+
+# Chose the variables needed.
+df_2 <- df_meta %>% select(mean_Susceptibility, Gender)
+
+# Z-scored susceptibility
+#df_2$mean_Susceptibility <- scale(df_2$mean_Susceptibility, center = TRUE, scale = TRUE)
+
+# Define the model
+mod_2 <- bf(mean_Susceptibility ~ 0 + Gender)
+
+# Figure out what priors we'll need:
+get_prior(mod_2, family = gaussian, df_2)
+
+# To get an idea of how to put the priors
+range(df_2$mean_Susceptibility)
+mean(df_2$mean_Susceptibility)
+sd(df_2$mean_Susceptibility)
+
+# Define unscaled priors
+prior_mod_2 <- c(
+  prior(normal(0, .12),  class = b), #mean and sd of susceptibility
+  prior(normal(.12, .06),   class = sigma) #mean: sd of susceptibility sigma: sd of susceptibility/2
+)
+
+# Z-scored priors
+#prior_mod_2 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of Z-scored susceptibility
+#  prior(normal(1, .5),    class = sigma) #mean: sd of Z-scored susceptibility sigma: sd of Z-scored susceptibility/2
+#)
+
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_2.0 <- brm(
+  formula = mod_2, 
+  prior = prior_mod_2,
+  data = df_2,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+# Prior predictive check
+pp_check(mod_2.0, nsamples = 1000) # 
+
+
+# The actual model:
+mod_2.1 <- brm(
+  formula = mod_2, 
+  prior = prior_mod_2,
+  data = df_2,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check
+pp_check(mod_2.1, nsamples = 1000)
+
+
+# Model summary
+summary(mod_2.1)
+
+
+# Trace plots
+mcmc_trace(mod_2.1,
+           pars = c("b_Gender0", "b_Gender1", 
+           "sigma")) + 
+  theme_classic()
+
+# Rank trace plots
+mcmc_rank_overlay(mod_2.1, 
+                  pars = c("b_Gender0", "b_Gender1")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+hypothesis(mod_2.1,"Gender1 > Gender0") # Initial hypothesis: Women have higher sus than men - rejected
+hypothesis(mod_2.1,"Gender1 = Gender0") # After trying different hypotheses, this turned out to be the best
+
+# Plot model learning, using the best hypothesis
+plot(hypothesis(mod_2.1,"Gender1 = Gender0")) #plotting model learning, using the best hypothesis
+
+# Plot conditional effects
+conditional_effects(mod_2.1)
+```
+
+
+
+Mod 3
+Benefit ~ 0 + Gender
+Hyp: Positive effect of women (NB: We have two a backdoors open, in the form of susceptibility and calibration)
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+# Chose the variables needed.
+df_3 <- data_1 %>% select(Gender, Benefit)
+
+# Z-scored benefit
+#df_3$Benefit <- scale(df_3$Benefit, center = TRUE, scale = TRUE)
+
+
+# Define the model
+mod_3 <- bf(Benefit ~ 0 + Gender)
+
+
+# Figure out what priors we'll need:
+get_prior(mod_3, family = gaussian, df_3)# We get Beta and Sigma as usual
+
+# To get an idea of how to put the priors
+range(df_3$Benefit)
+mean(df_3$Benefit) 
+sd(df_3$Benefit)
+ 
+
+# Define priors for unscaled varibles
+prior_mod_3 <- c(
+  prior(normal(7.2, 31.31),     class = b), #mean and sd of benefit
+  prior(normal(31.31, 15.66),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
+)
+
+# Z-scored priors
+#prior_mod_3 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of Z-scored Benefit 
+#  prior(normal(1, .5),    class = sigma) #mean: sd of Z-scored Benefit. sigma: sd of Z-scored benefit/2.
+#)
+
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_3.0 <- brm(
+  formula = mod_3, 
+  prior = prior_mod_3,
+  data = df_3,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+# Prior predictive check
+pp_check(mod_3.0, nsamples = 1000) # 
+
+
+# The actual model:
+mod_3.1 <- brm(
+  formula = mod_3, 
+  prior = prior_mod_3,
+  data = df_3,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check 
+pp_check(mod_3.1, nsamples = 1000)
+
+
+# Model summary
+summary(mod_3.1)
+
+
+# Trace plots
+mcmc_trace(mod_3.1,
+           pars = c("b_Gender0", "b_Gender1", 
+           "sigma")) + 
+  theme_classic()
+ 
+# Rank trace plots
+mcmc_rank_overlay(mod_3.1, 
+                  pars = c("b_Gender0", "b_Gender1")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+hypothesis(mod_3.1,"Gender1 > Gender0") # I hypothized that women have higher benefit than men - which seems not to be the case.
+hypothesis(mod_3.1,"Gender1 = Gender0") # More likely
+hypothesis(mod_3.1,"Gender1 < Gender0") # Just checking
+
+# Plot model learning, using the best hypothesis
+plot(hypothesis(mod_3.1,"Gender1 = Gender0")) 
+
+# Plot conditional effects
+conditional_effects(mod_3.1)
+```
+
+
+
+Mod 4
+Susceptibility ~ 1 + Calibration + Gender
+Hyp: Negative effect of calibration, positive effect of women
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+
+# Choose the variables needed
+df_4 <- df_meta %>% select(Gender, Calibration, mean_Susceptibility)
+
+# Z-score susceptibility and calibration
+#df_4$mean_Susceptibility <- scale(df_4$mean_Susceptibility, center = TRUE, scale = TRUE)
+#df_4$Calibration <- scale(df_4$Calibration, center = TRUE, scale = TRUE)
+
+# Define the model
+mod_4 <- bf(mean_Susceptibility ~ 1 + Calibration + Gender)#
+
+# Figure out what priors we'll need
+get_prior(mod_4, family = gaussian, df_meta) # We get Beta, Intercept and Sigma
+
+# To get an idea of how to put the priors
+range(df_4$mean_Susceptibility)
+mean(df_4$mean_Susceptibility)
+sd(df_4$mean_Susceptibility)
+
+
+# Define the unscaled priors
+prior_mod_4 <- c(
+  prior(normal(0, .12),     class = b), #mean and sd of susceptibility - I choose one skeptical prior for all of the predicters
+  prior(normal(0, .12),     class = Intercept), #mean and sd of susceptibility
+  prior(normal(.12, .06),   class = sigma) #mean: sd of susceptibility. sigma: sd of susceptibility/2.
+)
+
+# Z-scored priors
+#prior_mod_4 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of Z-scored susceptibility
+#  prior(normal(0, 1),     class = Intercept), #mean and sd of Z-scored susceptibility
+#  prior(normal(1, .5),    class = sigma) #mean: sd of Z-scored susceptibility sigma: sd of Z-scored susceptibility/2.
+#)
+
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_4_0 <- brm(
+  formula = mod_4, 
+  prior = prior_mod_4,
+  data = df_4,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+
+# Prior predictive check
+pp_check(mod_4_0, nsamples = 1000) # 
+
+
+# The actual model:
+mod_4_1 <- brm(
+  formula = mod_4, 
+  prior = prior_mod_4,
+  data = df_4,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check
+pp_check(mod_4_1, nsamples = 1000)
+
+# Model summary
+summary(mod_4_1) 
+
+# Trace plots
+mcmc_trace(mod_4_1,
+           pars = c("b_Calibration", "b_Gender1", 
+           "sigma")) + 
+  theme_classic()
+
+# Rank trace plots
+mcmc_rank_overlay(mod_4_1, 
+                  pars = c("b_Calibration", "b_Gender1")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+
+hypothesis(mod_4_1,"Calibration < 0") # I hypothize that there is a negative effect of calibration crit susceptibility - which seems to be the case
+hypothesis(mod_4_1,"Calibration = 0") # What if there was no effect?
+hypothesis(mod_4_1,"Gender1 > 0") #I hypothize that there is a pos effect of women on crit susceptibility - which is not the case
+hypothesis(mod_4_1,"Gender1 < 0")
+hypothesis(mod_4_1,"Gender1 = 0") # After trying different hypotheses, this turned out to be the best
+
+
+# Plot model learning, using the best hypotheses
+plot(hypothesis(mod_4_1,"Calibration = 0"))
+plot(hypothesis(mod_4_1,"Gender1 = 0")) 
+
+
+# Plot conditional effects
+conditional_effects(mod_4_1, pars = c("b_Calibration", "b_Gender1"))
+
+
+# Checking correlations between predictors:
+
+# Make gender numeric
+class(df_4$Gender) 
+df_4$Gender <- as.numeric(df_4$Gender) 
+
+
+# Correlation matrix
+p_load(Hmisc)
+
+cor_4 <- df_4 %>% 
+  select(Gender, Calibration) %>% 
+  as.matrix()
+
+cor_4 %>% 
+  Hmisc::rcorr(cor_4, type="pearson")
+
+
+# Make gender back into factor
+df_4$Gender <- as.factor(df_4$Gender) 
+
+# Plot the corelation:
+df_4 %>%
+  ggplot(aes(x = Gender, y = Calibration)) +
+  geom_point(alpha = 1/2, color = "firebrick4") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+
+# Coefficient plot
+stanplot(mod_4_1, 
+         type = "intervals", 
+         prob = .5, 
+         prob_outer = .95,
+         point_est = "median") +
+  labs(title    = "The coefficient plot of model 4") +
+  theme_bw() +
+  theme(text         = element_text(size = 14),
+        panel.grid   = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.text.y  = element_text(hjust = 0))
+
+# Check bivariate posterior of cal and gender
+pairs(mod_4_1, pars = parnames(mod_4_1)[2:3])
+```
+
+
+
+Mod 5
+Benefit ~ 1 + Susceptibility 
+Hyp: Positive effect of susceptibility
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+
+# Choose the variables needed.
+df_5 <- data_1 %>% select(mean_Susceptibility, Benefit)
+
+# Z-score variables
+#df_5$mean_Susceptibility <- scale(df_5$mean_Susceptibility, center = TRUE, scale = TRUE)
+#df_5$Benefit <- scale(df_5$Benefit, center = TRUE, scale = TRUE)
+
+# Define the model
+mod_5 <- bf(Benefit ~ 1 + mean_Susceptibility)
+
+
+# Figure out what priors we'll need:
+get_prior(mod_5, family = gaussian, df_5) # We get Beta, Intercept and Sigma
+
+# Checking range, mean and standard deviation of benefit, to figure out which priors to choose and determine which family to choose
+range(df_5$Benefit)
+mean(df_5$Benefit)
+sd(df_5$Benefit)
+
+# Define unscaled priors
+prior_mod_5 <- c(
+  prior(normal(7.2, 31.31),     class = b), #mean and sd of benefit
+  prior(normal(7.2, 31.31),     class = Intercept), #mean and sd of benefit
+  prior(normal(31.31, 15.66),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
+)
+
+# Z-scored priors
+#prior_mod_5 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of z-scored benefit
+#  prior(normal(0, 1),     class = Intercept), #mean and sd of z-scored benefit
+#  prior(normal(1, .5),    class = sigma) #mean: sd of z-scored benefit. sigma: sd of z-scored benefit/2.
+#)
+
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_5_0 <- brm(
+  formula = mod_5, 
+  prior = prior_mod_5,
+  data = df_5,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+
+# Prior predictive check
+pp_check(mod_5_0, nsamples = 1000) # 
+
+
+# The actual model:
+mod_5_1 <- brm(
+  formula = mod_5, 
+  prior = prior_mod_5,
+  data = df_5,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check
+pp_check(mod_5_1, nsamples = 1000)
+
+
+# Model summary
+summary(mod_5_1)
+
+
+# Trace plots
+mcmc_trace(mod_5_1,
+           pars = c("b_mean_Susceptibility", 
+           "sigma")) + 
+  theme_classic()
+
+# Rank trace plots
+mcmc_rank_overlay(mod_5_1, 
+                  pars = c("b_mean_Susceptibility")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+hypothesis(mod_5_1,"mean_Susceptibility > 0") #I hypothize that there is an effect of mean susceptibility on benefit - which is definitely the case
+
+# Plot model learning, using the best hypothesis
+plot(hypothesis(mod_5_1,"mean_Susceptibility > 0"))
+
+# Plot conditional effects
+conditional_effects(mod_5_1)
+```
+
