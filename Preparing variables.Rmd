@@ -1,0 +1,178 @@
+---
+title: "Preraring variables"
+author: "Sophia Kleist Karlson"
+date: "26 maj 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+Preparing variables (benefit, calibration and gender)
+
+```{r}
+setwd("~/Karsten projekt/exam/data")
+
+library(pacman)
+p_load(tidyverse)
+
+
+data <- read_csv("cleaned_data.csv") # We use the cleaned data
+data$X1 <- NULL # Removing the first unnecessary column
+```
+
+
+Calibration
+Calibration = sum of differences between confidence level (ranging 0.6 to 1.0) and mean accuracy (ranging 0.0 to 1.0) for each step on the confidence scale.
+```{r}
+# Make confidence 1 into absolute confidence
+data$abs_conf_1 <- abs(data$Confidence_1)
+
+# Selecting necessary variables
+cal_df <- data %>% group_by(Subject_ID) %>% select(abs_conf_1, Accuracy_1)
+
+# Make empty list for calibration scores
+Calibration <- c()
+
+
+# Loop for finding calibration for each participant
+for (i in 1:39){
+  cal_0.6 <- cal_df %>% filter(Subject_ID == i & abs_conf_1 == 0.6) # make a df when absolute confidence for subject i is 0.6 
+  cal_0.7 <- cal_df %>% filter(Subject_ID == i & abs_conf_1 == 0.7) # make a df when absolute confidence for subject i is 0.7
+  cal_0.8 <- cal_df %>% filter(Subject_ID == i & abs_conf_1 == 0.8) # make a df when absolute confidence for subject i is 0.8 
+  cal_0.9 <- cal_df %>% filter(Subject_ID == i & abs_conf_1 == 0.9) # make a df when absolute confidence for subject i is 0.9 
+  cal_1.0 <- cal_df %>% filter(Subject_ID == i & abs_conf_1 == 1.0) # make a df when absolute confidence for subject i is 1.0 
+  
+  # find mean accuracy_1 for each level of the confidence scale
+  mean_0.6 <- mean(cal_0.6$Accuracy_1) 
+  mean_0.7 <- mean(cal_0.7$Accuracy_1)
+  mean_0.8 <- mean(cal_0.8$Accuracy_1)
+  mean_0.9 <- mean(cal_0.9$Accuracy_1)
+  mean_1.0 <- mean(cal_1.0$Accuracy_1)
+  
+  mean_acc <- c(mean_0.6, mean_0.7, mean_0.8, mean_0.9, mean_1.0) #list of mean accuracies for each level of the confidence scale
+  conf <- c(0.6, 0.7, 0.8, 0.9, 1.0) # list of confidence levels
+  Calibrations <- sum(conf - mean_acc, na.rm = T) # calculate calibration: sum of differences between confidence level and mean accuracy for that confidence level
+  Calibration[i] <- paste(Calibrations, collapse=NULL) # paste into the calibration list
+}
+
+# Print calibration scores for all 39 participants
+print(Calibration)
+
+#Making a df with one measure of calibration per participant
+Subject_ID <- c(1:39)
+Calibration <- data.frame(Subject_ID, Calibration)
+
+#making calibration into numeric
+class(Calibration$Calibration)
+Calibration$Calibration <- as.character(Calibration$Calibration) #this is needed
+Calibration$Calibration <- as.numeric(Calibration$Calibration) #making it into numeric
+class(Calibration$Calibration)
+
+
+# Take a look at range and mean of calibration
+mean(Calibration$Calibration)
+range(Calibration$Calibration)
+summary(Calibration$Calibration)
+```
+
+
+Benefit
+Benefit = score_2 - score_1
+```{r}
+
+# Option 1: 1 benefit score for each trial
+data$Benefit = data$Score_2 - data$Score_1
+
+# Take a look at range and mean of benefit
+range(data$Benefit)
+mean(data$Benefit)
+sd(data$Benefit)
+
+
+# Option 2: Make a dataframe with benefit scores, 1 for each participant, calculated by subtracting the mean score_1 from the mean score_2 for each participant
+
+# Empty list to fill with benefit scores
+Benefits <- c(0)
+
+# Loop for finding mean benefit for each participant
+for (i in 1:39){
+  ID <- data %>% filter(Subject_ID == i) 
+  Benefit <- mean(ID$Score_2) - mean(ID$Score_1)
+  Benefits[i] <- paste(Benefit, collapse=NULL)
+}
+print(Benefits)
+
+Subject_ID <- c(1:39)
+
+# Make a dataframe with participants and their benefit
+Benefit <- data.frame(Subject_ID, Benefits)
+
+# Renaming "Benefits" to "Benefit"
+Benefit$Benefit <- Benefit$Benefits
+Benefit$Benefits <- NULL
+
+class(Benefit$Benefit)
+Benefit$Benefit <- as.character(Benefit$Benefit) #this is needed
+Benefit$Benefit <- as.numeric(Benefit$Benefit) #making it into numeric
+class(Benefit$Benefit)
+
+# Take a look at range and mean of average benefit
+range(Benefit$Benefit)
+mean(Benefit$Benefit)
+sd(Benefit$Benefit)
+
+# Plot average benefit of each participant
+plot(Benefit) # Participant 39 looks like an outlier
+
+# Look at the average benefit in z-scores - participant 39 definitely looks like an outlier
+print(scale(Benefit$Benefit, center = TRUE, scale = TRUE))
+```
+
+
+Gender
+```{r}
+# To make a list of the genders of the 39 participants
+
+Genders <- c(0)
+for (i in 1:39){
+  ID <- data %>% filter(Subject_ID == i) 
+  Gender <- mean(ID$Gender)
+  Genders[i] <- paste(Gender, collapse=NULL)
+}
+print(Genders)
+
+# Make a list of participants
+Subject_ID <- c(1:39)
+
+# Make a dataframe with participants and their gender
+Gender <- data.frame(Subject_ID, Genders)
+
+# Renaming "Genders" to "Gender"
+Gender$Gender <- Gender$Genders
+Gender$Genders <- NULL
+```
+
+
+Beautiful datasets
+```{r}
+# Add calibration to "data"
+data_1 <- merge(data, Calibration)
+
+# Make a new dataframe only with metacognitive measures (and gender) where we have 1 score per participant, by merging the calibration dataframe and benefit dataframe (although I won't actually model these benefit scores)
+df_meta <- merge(Calibration, Benefit)
+
+# Add gender to df_meta
+df_meta$Gender <- Gender$Gender
+
+
+# Save df_meta
+write.csv(df_meta, "meta_measures.csv")
+
+# Save data_1
+write.csv(data_1, "data_1.csv")
+```
+
