@@ -14,7 +14,7 @@ Extra model
 
 Mod 6
 Benefit ~ 0 + Gender
-Excluding participant 39
+Re-entering the benefit-scores of participant 39 as the mean benefit of all participants (including the original benefit of participant 39).
 
 ```{r}
 setwd("~/Karsten projekt/exam/data")
@@ -57,15 +57,22 @@ Running the model
 # Set seed so that the analysis can be re-run and give the same results
 set.seed(555)
 
-
 # Chose the variables needed
 df_6 <- data_1 %>% select(Gender, Benefit)
 
-# Z-score benefit
-#df_6$Benefit <- scale(df_6$Benefit, center = TRUE, scale = TRUE)
+# Find the mean benefit
+mean(df_6$Benefit)
 
-# Remove participant 39
-df_6 <- df_6[-c(9121:9360), ]
+# Make a list of benefit-scores, all of 7.21, the mean benefit for all participants
+mean_ben <- rep(7.21, times=240) 
+head(mean_ben)
+
+# Re-enter the benefit-scores of participant 39 to the mean benefit
+df_6$Benefit[c(9121:9360)] <- mean_ben
+
+
+# Z-score benefit (for plots)
+#df_6$Benefit <- scale(df_6$Benefit, center = TRUE, scale = TRUE)
 
 
 # Define the model
@@ -73,7 +80,7 @@ mod_6 <- bf(Benefit ~ 0 + Gender)
 
 
 # Figure out what priors we'll need:
-get_prior(mod_6, family = gaussian, df_3)# We get Beta and Sigma as usual
+get_prior(mod_6, family = gaussian, df_6) # We get Beta and Sigma as usual
 
 # To get an idea of how to put the priors
 range(df_6$Benefit)
@@ -83,8 +90,8 @@ sd(df_6$Benefit)
 
 # Priors, unscaled
 prior_mod_6 <- c(
-  prior(normal(6.71, 30.5),     class = b), #mean and sd of benefit
-  prior(normal(30.5, 15.25),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
+  prior(normal(6.72, 30.1),     class = b), #mean and sd of benefit
+  prior(normal(30.1, 15.05),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
 )
 
 # Z-scored priors
