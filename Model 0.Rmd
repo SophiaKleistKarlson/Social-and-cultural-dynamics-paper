@@ -1,0 +1,281 @@
+---
+title: "Model 0"
+author: "Sophia Kleist Karlson"
+date: "26 maj 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Model 0 - calculating susceptibility 
+
+
+```{r}
+setwd("~/Karsten projekt/exam/data")
+
+library(pacman)
+p_load(tidyverse, brms, ggplot2)
+
+data <- read_csv("cleaned_data.csv") #we use the cleaned data (without metacognitive measures)
+data$X1 <- NULL#removing the first unnecessary column
+
+# Set color scheme to red for the rest of the script
+color_scheme_set("red")
+```
+
+
+Preparing the data and checking stuff
+```{r}
+# Checking classes
+class(data$Advisor)
+class(data$Confidence_1)
+class(data$Confidence_2)
+class(data$adv_Confidence)
+class(data$Accuracy_1)
+
+# Advisor and Accuracy_1 should be factors
+data$Accuracy_1 <- as.factor(data$Accuracy_1)
+data$Advisor <- as.factor(data$Advisor)
+
+
+# Chose the variables needed for the model
+df_sus <- data %>% select(Subject_ID, Confidence_1, Confidence_2, Accuracy_1, Advisor, adv_Confidence)
+
+
+# First, rescale confidence
+df_sus$Confidence_1 <- as.factor(df_sus$Confidence_1) # Make confidence_1 into factor
+levels(df_sus$Confidence_1) <- c("0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0") # Rename levels
+df_sus$Confidence_1 <- as.character(df_sus$Confidence_1) # this is necessary for some reason
+df_sus$Confidence_1 <- as.numeric(df_sus$Confidence_1) # back to numeric
+range(df_sus$Confidence_1) # Checking that the range is 0.1 to 1.0
+class(df_sus$Confidence_1) #Checking that it's numeric
+
+# Same deal for Confidence_2 and adv_Confidence
+df_sus$Confidence_2 <- as.factor(df_sus$Confidence_2)
+levels(df_sus$Confidence_2) <- c("0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0")
+df_sus$Confidence_2 <- as.character(df_sus$Confidence_2)
+df_sus$Confidence_2 <- as.numeric(df_sus$Confidence_2)
+range(df_sus$Confidence_2)
+class(df_sus$Confidence_2)
+
+df_sus$adv_Confidence <- as.factor(df_sus$adv_Confidence)
+levels(df_sus$adv_Confidence) <- c("0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1.0")
+df_sus$adv_Confidence <- as.character(df_sus$adv_Confidence)
+df_sus$adv_Confidence <- as.numeric(df_sus$adv_Confidence)
+range(df_sus$adv_Confidence)
+class(df_sus$adv_Confidence)
+```
+
+
+Mod 0 
+Confidence_2 ~ 1 + Confidence_1 + Accuracy_1 + Advisor + adv_Confidence + Confidence_1:Accuracy_1 + (Confidence_1 + Advisor):adv_Confidence + (1 + Confidence_1 + Accuracy_1 + Advisor + adv_Confidence + Confidence_1:Accuracy_1 + (Confidence_1 + Advisor):adv_Confidence | Subject_ID)
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+
+# Define the model
+sus_mod <- bf(Confidence_2 ~ 1 + Confidence_1 + Accuracy_1 + Advisor + adv_Confidence + Confidence_1:Accuracy_1 + (Confidence_1 + Advisor):adv_Confidence + (1 + Confidence_1 + Accuracy_1 + Advisor + adv_Confidence + Confidence_1:Accuracy_1 + (Confidence_1 + Advisor):adv_Confidence | Subject_ID))
+
+
+# Figure out what priors we'll need
+get_prior(sus_mod, family = gaussian, df_sus)
+
+# Checking range, mean and standard deviation of confidence_2, to determine which family to choose and to use for beta- and intercept-priors
+range(df_sus$Confidence_2)
+mean(df_sus$Confidence_2)
+sd(df_sus$Confidence_2)
+
+# For choosing the sd prior
+df_part <- df_sus %>% group_by(Subject_ID) %>% summarize(conf_2_mean = mean(Confidence_2)) #find mean confidence_2 for each participant
+sd(df_part$conf_2_mean) #get the standard deviation of the mean confidence_2 for each participant
+
+
+# Define priors
+prior_sus_mod <- c(
+  prior(normal(0.55, .23),     class = b), #mean and sd of confidence 2
+  prior(lkj(1),                class = cor),
+  prior(normal(.56, .31),      class = Intercept), #mean and sd of confidence 2
+  prior(normal(0, .02),        class = sd), #mean: 0 (I expect that they might not vary at all). sd for the mean conf_2 for each participant = 0.045. sigma should go from 0 (the mean of the prior) to around that -> sigma: 0.02.
+  prior(normal(.23, .15),      class = sigma) #mean: sd of confidence 2, sigma: half of the sd of confidence 2
+)
+
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+skep_sus_mod0 <- brm(
+  formula = sus_mod, 
+  prior = prior_sus_mod,
+  data = df_sus,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+
+# Prior predictive check
+pp_check(skep_sus_mod0, nsamples = 1000) # 
+
+
+# The actual model:
+skep_sus_mod1 <- brm(
+  formula = sus_mod, 
+  prior = prior_sus_mod,
+  data = df_sus,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check
+pp_check(skep_sus_mod1, nsamples = 1000)
+
+
+# Model summary
+summary(skep_sus_mod1) # Warnings? Suspicious Rhat activity? 
+
+
+# Trace plots
+mcmc_trace(skep_sus_mod1,
+           pars = c("b_Confidence_1", "b_Accuracy_11", "b_Advisor2", "b_adv_Confidence", "b_Confidence_1:Accuracy_11", "b_Confidence_1:adv_Confidence", "b_Advisor2:adv_Confidence", "sd_Subject_ID__Confidence_1")) + 
+  theme_classic()
+
+mcmc_trace(skep_sus_mod1,
+           pars = c("sd_Subject_ID__Accuracy_11", "sd_Subject_ID__Advisor2", "sd_Subject_ID__adv_Confidence", "sd_Subject_ID__Confidence_1:Accuracy_11", "sd_Subject_ID__Confidence_1:adv_Confidence", "sd_Subject_ID__Advisor2:adv_Confidence")) + 
+  theme_classic()
+
+
+
+# Rank trace plots
+mcmc_rank_overlay(skep_sus_mod1, 
+                  pars = c("b_Confidence_1", "b_Accuracy_11", "b_Advisor2", "b_adv_Confidence")) + 
+  theme_classic()
+
+mcmc_rank_overlay(skep_sus_mod1, 
+                  pars = c("b_Confidence_1:Accuracy_11", "b_Confidence_1:adv_Confidence", "b_Advisor2:adv_Confidence", "sd_Subject_ID__Confidence_1")) + 
+  theme_classic()
+
+mcmc_rank_overlay(skep_sus_mod1, 
+                  pars = c("sd_Subject_ID__Accuracy_11", "sd_Subject_ID__Advisor2", "sd_Subject_ID__adv_Confidence", "sd_Subject_ID__Confidence_1:Accuracy_11")) + 
+  theme_classic()
+
+mcmc_rank_overlay(skep_sus_mod1, 
+                  pars = c("sd_Subject_ID__Confidence_1:adv_Confidence", "sd_Subject_ID__Advisor2:adv_Confidence")) + 
+  theme_classic()
+
+
+
+# Check model learning for betas and sd's
+plot(hypothesis(skep_sus_mod1,"Intercept > 0"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1 > 0"))
+plot(hypothesis(skep_sus_mod1,"Accuracy_11 > 0"))
+plot(hypothesis(skep_sus_mod1,"Advisor2 > 0"))
+plot(hypothesis(skep_sus_mod1,"adv_Confidence > 0"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1:Accuracy_11 > 0"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1:adv_Confidence > 0"))
+plot(hypothesis(skep_sus_mod1,"Advisor2:adv_Confidence > 0"))
+
+plot(hypothesis(skep_sus_mod1,"Intercept > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1 > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Accuracy_11 > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Advisor2 > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"adv_Confidence > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1:Accuracy_11 > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Confidence_1:adv_Confidence > 0", class="sd", group="Subject_ID"))
+plot(hypothesis(skep_sus_mod1,"Advisor2:adv_Confidence > 0", class="sd", group="Subject_ID"))
+
+
+# Plot effects
+conditional_effects(skep_sus_mod1) # the last one shows how the two advisors are followed differently
+```
+
+
+
+Adding susceptibility to df_meta and data_1
+```{r}
+# Take the estimates of the varying effect of adv_Confidence
+sus_mean <- ranef(
+  skep_sus_mod1,
+  summary = TRUE,
+  robust = FALSE,
+  probs = c(0.025, 0.975),
+  pars = "adv_Confidence",
+  groups = NULL
+) 
+
+# Take a look
+head(sus_mean)
+
+sus_mean <- as.data.frame(sus_mean$Subject_ID, sus_mean$Estimate) # Make a dataframe with subject ID and estimates from the varying effects of adv_Confidence
+
+sus_mean$sus_mean <- sus_mean$'Estimate.adv_Confidence' # Rename this column to sus_mean
+sus_mean$'Estimate.adv_Confidence' <- NULL # Delete the old column
+
+# Look at sus_mean
+mean(sus_mean$sus_mean)
+sd(sus_mean$sus_mean)
+summary(sus_mean$sus_mean)
+
+# Make a list of participants
+Subject_ID <- c(1:39)
+
+# Add participants to sus_mean
+sus_mean$Subject_ID <- Subject_ID
+
+# Save sus_mean as its own data file (with CI interval and estimated error)
+#write.csv(sus_mean, "mean_sus.csv")
+
+
+# Make a new dataframe only with the mean estimate of mean susceptibility from sus_mean
+sus_mean_1 <- sus_mean$sus_mean
+sus_mean_1 <- as.data.frame(sus_mean_1)
+
+# Add Subject_ID to the dataframe
+sus_mean_1$Subject_ID <- Subject_ID
+
+
+
+# Load the metacognitive measures dataframe (df_meta)
+df_meta <- read.csv("meta_measures.csv")
+df_meta$X1 <- NULL
+
+# Add susceptibility to df_meta
+df_meta$mean_Susceptibility <- sus_mean_1$sus_mean_1
+
+# Save df_meta
+write.csv(df_meta, "meta_measures.csv")
+
+
+# Load data_1
+data_1 <- read.csv("data_1.csv")
+data_1$X1 <- NULL
+
+# Add susceptibility to data_1
+data_1 <- merge(data_1, sus_mean_1)
+
+# Save data_1
+write.csv(data_1, "data_1.csv")
+```
+
+
+
+Plot susceptibility
+```{r}
+# Plot how susceptibiilty varies between participants
+df_sus$Subject_ID <- as.factor(df_sus$Subject_ID)
+ggplot(df_sus) + 
+  geom_point(aes(adv_Confidence,Confidence_2, color = Subject_ID, group=Subject_ID)) + 
+  geom_smooth(method=lm, se=F, aes(adv_Confidence,Confidence_2, color = Subject_ID)) +
+  labs(y= "Revised confidence", x = "Advisor confidence")
+
+# Plot susceptibility scores for each participant
+plot_sus <- ggplot(sus_mean_1, aes(Subject_ID, sus_mean_1)) +
+  geom_point() +
+  labs(y= "Susceptibility", x = "Participant")
+plot_sus
+```
+
