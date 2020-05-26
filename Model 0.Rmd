@@ -19,8 +19,8 @@ setwd("~/Karsten projekt/exam/data")
 library(pacman)
 p_load(tidyverse, brms, ggplot2)
 
-data <- read_csv("cleaned_data.csv") #we use the cleaned data (without metacognitive measures)
-data$X1 <- NULL#removing the first unnecessary column
+data <- read_csv("cleaned_data.csv") # we use the cleaned data (without metacognitive measures)
+data$X1 <- NULL # removing the first unnecessary column
 
 # Set color scheme to red for the rest of the script
 color_scheme_set("red")
@@ -90,8 +90,8 @@ mean(df_sus$Confidence_2)
 sd(df_sus$Confidence_2)
 
 # For choosing the sd prior
-df_part <- df_sus %>% group_by(Subject_ID) %>% summarize(conf_2_mean = mean(Confidence_2)) #find mean confidence_2 for each participant
-sd(df_part$conf_2_mean) #get the standard deviation of the mean confidence_2 for each participant
+df_part <- df_sus %>% group_by(Subject_ID) %>% summarize(conf_2_mean = mean(Confidence_2)) # find mean confidence_2 for each participant
+sd(df_part$conf_2_mean) # get the standard deviation of the mean confidence_2 for each participant
 
 
 # Define priors
