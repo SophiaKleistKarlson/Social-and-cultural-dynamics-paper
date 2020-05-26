@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-Model 0 - calculating susceptibility 
+Model 0 - to get susceptibility scores
 
 
 ```{r}
