@@ -23,10 +23,10 @@ p_load(tidyverse, brms, bayesplot)
 df_meta <- read_csv("meta_measures.csv") # we use Meta-measures because it has the columns calibration, susceptibiilty and gender
 df_meta$X1 <- NULL #removing the first unnecessary column
 
-data_1 <- read_csv("data_1.csv") # this dataframe also has benefit (1 per trial)
+data_1 <- read_csv("data_1.csv") # this dataframe has the above but also benefit (1 per trial)
 data_1$X1 <- NULL
 
-#checking the class of gender in the two dataframes - as they are numeric and integer, I change them to factor
+# checking the class of gender in the two dataframes - as they are numeric and integer, I change them to factor
 class(df_meta$Gender)
 df_meta$Gender <- as.factor(df_meta$Gender)
 
@@ -48,7 +48,7 @@ Hyp: Positive effect of men
 set.seed(555)
 
 
-# Chose the variables needed.
+# Chose the variables needed
 df_1 <- df_meta %>% select(Calibration, Gender)
 
 # Z-score calibtration
@@ -58,13 +58,14 @@ df_1 <- df_meta %>% select(Calibration, Gender)
 mod_1 <- bf(Calibration ~ 0 + Gender)
 
 
-# Figure out what priors we'll need:
+# Figure out what priors we'll need
 get_prior(mod_1, family = gaussian, df_1)
 
-#Checking range, mean and standard deviation of benefit, to find priors and determine which family to choose.
+# Checking range, mean and standard deviation of benefit, to find priors and determine which family to choose
 range(df_1$Calibration)
 mean(df_1$Calibration) 
 sd(df_1$Calibration)
+
 
 # Define priors for unscaled variables
 prior_mod_1 <- c(
@@ -223,6 +224,7 @@ mcmc_rank_overlay(mod_2.1,
 
 # Hypothesis testing
 hypothesis(mod_2.1,"Gender1 > Gender0") # Initial hypothesis: Women have higher sus than men - rejected
+hypothesis(mod_2.1,"Gender1 < Gender0") # Nope
 hypothesis(mod_2.1,"Gender1 = Gender0") # After trying different hypotheses, this turned out to be the best
 
 # Plot model learning, using the best hypothesis
@@ -423,10 +425,10 @@ mcmc_rank_overlay(mod_4_1,
 
 # Hypothesis testing
 
-hypothesis(mod_4_1,"Calibration < 0") # I hypothize that there is a negative effect of calibration crit susceptibility - which seems to be the case
-hypothesis(mod_4_1,"Calibration = 0") # What if there was no effect?
-hypothesis(mod_4_1,"Gender1 > 0") #I hypothize that there is a pos effect of women on crit susceptibility - which is not the case
-hypothesis(mod_4_1,"Gender1 < 0")
+hypothesis(mod_4_1,"Calibration < 0") # I hypothize that there is a negative effect of calibration on susceptibility - which seems to be the case
+hypothesis(mod_4_1,"Calibration = 0") # What if there was no effect? More likely
+hypothesis(mod_4_1,"Gender1 > 0") # I hypothize that there is a positive effect of women on susceptibility - which is not the case
+hypothesis(mod_4_1,"Gender1 < 0") # Nope
 hypothesis(mod_4_1,"Gender1 = 0") # After trying different hypotheses, this turned out to be the best
 
 
@@ -577,7 +579,7 @@ mcmc_rank_overlay(mod_5_1,
 
 
 # Hypothesis testing
-hypothesis(mod_5_1,"mean_Susceptibility > 0") #I hypothize that there is an effect of mean susceptibility on benefit - which is definitely the case
+hypothesis(mod_5_1,"mean_Susceptibility > 0") # I hypothize that there is an effect of mean susceptibility on benefit - which is definitely the case
 
 # Plot model learning, using the best hypothesis
 plot(hypothesis(mod_5_1,"mean_Susceptibility > 0"))
