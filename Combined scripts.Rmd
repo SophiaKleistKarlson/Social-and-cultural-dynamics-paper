@@ -1,5 +1,5 @@
 ---
-title: "Combined scripts: Data cleaning, variable preparation, running models 0-5 (and extra model 6)"
+title: "Combined scripts: Data cleaning, variable preparation, running models 0-5 (plus extra model 6)"
 author: "Sophia Marthine Kleist Karlson"
 date: "May 21, 2020"
 output: html_document
