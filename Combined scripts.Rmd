@@ -1,16 +1,10 @@
 ---
-title: "Combined scripts"
+title: "Combined scripts: Data cleaning, variable preparation, running models 0-5 (and extra model 6)"
 author: "Sophia Marthine Kleist Karlson"
 date: "May 21, 2020"
 output: html_document
 ---
 
----
-title: "Data-cleaning, preparing models and running models"
-output: html_document
-author: Sophia Marthine Kleist Karlson
-date: May, 2020
----
 
 
 Data cleaning
@@ -188,7 +182,7 @@ sd(Benefit$Benefit)
 plot(Benefit) # Participant 39 looks like an outlier
 
 # Look at the average benefit in z-scores - participant 39 definitely looks like an outlier
-Benefit$Ben_z_scores <- scale(Benefit$Benefit, center = TRUE, scale = TRUE)
+print(scale(Benefit$Benefit, center = TRUE, scale = TRUE))
 ```
 
 
@@ -250,8 +244,8 @@ setwd("~/Karsten projekt/exam/data")
 library(pacman)
 p_load(tidyverse, brms, ggplot2)
 
-data <- read_csv("cleaned_data.csv") #we use the cleaned data (without metacognitive measures)
-data$X1 <- NULL#removing the first unnecessary column
+data <- read_csv("cleaned_data.csv") # we use the cleaned data (without metacognitive measures)
+data$X1 <- NULL # removing the first unnecessary column
 
 # Set color scheme to red for the rest of the script
 color_scheme_set("red")
@@ -544,6 +538,37 @@ color_scheme_set("red")
 
 
 
+Models 1-5
+
+
+```{r}
+setwd("~/Karsten projekt/exam/data")
+
+library(pacman)
+p_load(tidyverse, brms, bayesplot)
+
+
+df_meta <- read_csv("meta_measures.csv") # we use Meta-measures because it has the columns calibration, susceptibiilty and gender
+df_meta$X1 <- NULL #removing the first unnecessary column
+
+data_1 <- read_csv("data_1.csv") # this dataframe also has benefit (1 per trial)
+data_1$X1 <- NULL
+
+#checking the class of gender in the two dataframes - as they are numeric and integer, I change them to factor
+class(df_meta$Gender)
+df_meta$Gender <- as.factor(df_meta$Gender)
+
+class(data_1$Gender)
+data_1$Gender <- as.factor(data_1$Gender)
+
+
+# Set color scheme to red for the rest of the script
+color_scheme_set("red")
+```
+
+
+
+
 Mod 1
 Calibration ~ 0 + Gender
 Hyp: Positive effect of men
@@ -552,34 +577,35 @@ Hyp: Positive effect of men
 set.seed(555)
 
 
-# Chose the variables needed.
+# Chose the variables needed
 df_1 <- df_meta %>% select(Calibration, Gender)
 
-# Scale calibtration
+# Z-score calibtration
 #df_1$Calibration <- scale(df_1$Calibration, center = TRUE, scale = TRUE)
 
 # Define the model
 mod_1 <- bf(Calibration ~ 0 + Gender)
 
 
-# Figure out what priors we'll need:
+# Figure out what priors we'll need
 get_prior(mod_1, family = gaussian, df_1)
 
-#Checking range, mean and standard deviation of benefit, to find priors and determine which family to choose.
+# Checking range, mean and standard deviation of benefit, to find priors and determine which family to choose
 range(df_1$Calibration)
 mean(df_1$Calibration) 
 sd(df_1$Calibration)
 
-# Define priors for non-scaled variables
+
+# Define priors for unscaled variables
 prior_mod_1 <- c(
   prior(normal(.22, .54), class = b), #mean and sd of calibration
   prior(normal(.54, .27), class = sigma) #mean: sd of calibration. sigma: sd of calibration/2
 )
 
-# Scaled priors
+# Z-scored priors
 #prior_mod_1 <- c(
-#  prior(normal(0, 1),     class = b), #mean and sd of calibration
-#  prior(normal(1, .5),    class = sigma) #mean: sd of calibration. sigma: sd of calibration/2
+#  prior(normal(0, 1),     class = b), #mean and sd of Z-scored calibration
+#  prior(normal(1, .5),    class = sigma) #mean: sd of Z-scored calibration. sigma: sd of Z-scored calibration/2
 #)
 
   
@@ -652,7 +678,7 @@ set.seed(555)
 # Chose the variables needed.
 df_2 <- df_meta %>% select(mean_Susceptibility, Gender)
 
-# Scale susceptibility
+# Z-scored susceptibility
 #df_2$mean_Susceptibility <- scale(df_2$mean_Susceptibility, center = TRUE, scale = TRUE)
 
 # Define the model
@@ -666,16 +692,16 @@ range(df_2$mean_Susceptibility)
 mean(df_2$mean_Susceptibility)
 sd(df_2$mean_Susceptibility)
 
-# Define priors
+# Define unscaled priors
 prior_mod_2 <- c(
-  prior(normal(0, .12),  class = b), #mean and sd of sus
-  prior(normal(.12, .06),   class = sigma) #mean: sd of sus. sigma: sd of sus/2
+  prior(normal(0, .12),  class = b), #mean and sd of susceptibility
+  prior(normal(.12, .06),   class = sigma) #mean: sd of susceptibility sigma: sd of susceptibility/2
 )
 
-# Scaled priors
+# Z-scored priors
 #prior_mod_2 <- c(
-#  prior(normal(0, 1),     class = b), #mean and sd of sus
-#  prior(normal(1, .5),   class = sigma) #mean: sd of sus. sigma: sd of sus/2
+#  prior(normal(0, 1),     class = b), #mean and sd of Z-scored susceptibility
+#  prior(normal(1, .5),    class = sigma) #mean: sd of Z-scored susceptibility sigma: sd of Z-scored susceptibility/2
 #)
 
 
@@ -727,6 +753,7 @@ mcmc_rank_overlay(mod_2.1,
 
 # Hypothesis testing
 hypothesis(mod_2.1,"Gender1 > Gender0") # Initial hypothesis: Women have higher sus than men - rejected
+hypothesis(mod_2.1,"Gender1 < Gender0") # Nope
 hypothesis(mod_2.1,"Gender1 = Gender0") # After trying different hypotheses, this turned out to be the best
 
 # Plot model learning, using the best hypothesis
@@ -748,12 +775,8 @@ set.seed(555)
 # Chose the variables needed.
 df_3 <- data_1 %>% select(Gender, Benefit)
 
-# Scale benefit
+# Z-scored benefit
 #df_3$Benefit <- scale(df_3$Benefit, center = TRUE, scale = TRUE)
-
-# Remove participant 39
-#df_3 <- df_3[-c(39), ]
-#df_3 <- df_3[-c(9121:9360), ]
 
 
 # Define the model
@@ -769,22 +792,16 @@ mean(df_3$Benefit)
 sd(df_3$Benefit)
  
 
-# Define priors for non-scaled varibles
+# Define priors for unscaled varibles
 prior_mod_3 <- c(
   prior(normal(7.2, 31.31),     class = b), #mean and sd of benefit
   prior(normal(31.31, 15.66),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
 )
 
-# Priors non-scaled without participant 39
+# Z-scored priors
 #prior_mod_3 <- c(
-#  prior(normal(6.71, 30.5),     class = b), #mean and sd of benefit
-#  prior(normal(30.5, 15.25),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
-#)
-
-# Scaled priors
-#prior_mod_3 <- c(
-#  prior(normal(0, 1),     class = b), #mean and sd of Benefit 
-#  prior(normal(1, .5),    class = sigma) #mean: sd of Benefit. sigma: sd of Benefit/2.
+#  prior(normal(0, 1),     class = b), #mean and sd of Z-scored Benefit 
+#  prior(normal(1, .5),    class = sigma) #mean: sd of Z-scored Benefit. sigma: sd of Z-scored benefit/2.
 #)
 
 
@@ -859,9 +876,9 @@ set.seed(555)
 # Choose the variables needed
 df_4 <- df_meta %>% select(Gender, Calibration, mean_Susceptibility)
 
-# Scale susceptibility and calibration
-df_4$mean_Susceptibility <- scale(df_4$mean_Susceptibility, center = TRUE, scale = TRUE)
-df_4$Calibration <- scale(df_4$Calibration, center = TRUE, scale = TRUE)
+# Z-score susceptibility and calibration
+#df_4$mean_Susceptibility <- scale(df_4$mean_Susceptibility, center = TRUE, scale = TRUE)
+#df_4$Calibration <- scale(df_4$Calibration, center = TRUE, scale = TRUE)
 
 # Define the model
 mod_4 <- bf(mean_Susceptibility ~ 1 + Calibration + Gender)#
@@ -882,12 +899,13 @@ prior_mod_4 <- c(
   prior(normal(.12, .06),   class = sigma) #mean: sd of susceptibility. sigma: sd of susceptibility/2.
 )
 
-# Scaled priors
+# Z-scored priors
 #prior_mod_4 <- c(
-#  prior(normal(0, 1),     class = b), #mean and sd of outcome
-#  prior(normal(0, 1),     class = Intercept), #mean and sd of outcome
-#  prior(normal(1, .5),    class = sigma) #mean: sd of outcome. sigma: sd of outcome/2.
+#  prior(normal(0, 1),     class = b), #mean and sd of Z-scored susceptibility
+#  prior(normal(0, 1),     class = Intercept), #mean and sd of Z-scored susceptibility
+#  prior(normal(1, .5),    class = sigma) #mean: sd of Z-scored susceptibility sigma: sd of Z-scored susceptibility/2.
 #)
+
 
 # Fitting the model samplig only from priors, in order to check the quality of the priors
 mod_4_0 <- brm(
@@ -936,19 +954,17 @@ mcmc_rank_overlay(mod_4_1,
 
 # Hypothesis testing
 
-hypothesis(mod_4_1,"Calibration < 0") # I hypothize that there is a negative effect of calibration crit susceptibility - which seems to be the case
-hypothesis(mod_4_1,"Calibration = 0") # What if there was no effect?
-hypothesis(mod_4_1,"Gender1 > 0") #I hypothize that there is a pos effect of women on crit susceptibility - which is not the case
-hypothesis(mod_4_1,"Gender1 < 0")
+hypothesis(mod_4_1,"Calibration < 0") # I hypothize that there is a negative effect of calibration on susceptibility - which seems to be the case
+hypothesis(mod_4_1,"Calibration = 0") # What if there was no effect? More likely
+hypothesis(mod_4_1,"Gender1 > 0") # I hypothize that there is a positive effect of women on susceptibility - which is not the case
+hypothesis(mod_4_1,"Gender1 < 0") # Nope
 hypothesis(mod_4_1,"Gender1 = 0") # After trying different hypotheses, this turned out to be the best
 
 
 # Plot model learning, using the best hypotheses
-plot(hypothesis(mod_4_1,"Intercept > 0")) # plot model learning of intercept (which shows no prior though...)
-plot(hypothesis(mod_4_1,"Calibration < 0")) 
 plot(hypothesis(mod_4_1,"Calibration = 0"))
 plot(hypothesis(mod_4_1,"Gender1 = 0")) 
-plot(hypothesis(mod_4_1,"Gender1 < 0")) 
+
 
 # Plot conditional effects
 conditional_effects(mod_4_1, pars = c("b_Calibration", "b_Gender1"))
@@ -1013,12 +1029,9 @@ set.seed(555)
 # Choose the variables needed.
 df_5 <- data_1 %>% select(mean_Susceptibility, Benefit)
 
-# Scale variables
+# Z-score variables
 #df_5$mean_Susceptibility <- scale(df_5$mean_Susceptibility, center = TRUE, scale = TRUE)
 #df_5$Benefit <- scale(df_5$Benefit, center = TRUE, scale = TRUE)
-
-# Remove participant 39, because it is an outlier
-#df_5 <- df_5[-c(9121:9360), ]
 
 # Define the model
 mod_5 <- bf(Benefit ~ 1 + mean_Susceptibility)
@@ -1027,7 +1040,7 @@ mod_5 <- bf(Benefit ~ 1 + mean_Susceptibility)
 # Figure out what priors we'll need:
 get_prior(mod_5, family = gaussian, df_5) # We get Beta, Intercept and Sigma
 
-#Checking range, mean and standard deviation of benefit, to figure out which priors to choose and determine which family to choose
+# Checking range, mean and standard deviation of benefit, to figure out which priors to choose and determine which family to choose
 range(df_5$Benefit)
 mean(df_5$Benefit)
 sd(df_5$Benefit)
@@ -1039,19 +1052,13 @@ prior_mod_5 <- c(
   prior(normal(31.31, 15.66),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
 )
 
-# Define unscaled priors without participant 39
+# Z-scored priors
 #prior_mod_5 <- c(
-#  prior(normal(6.71, 30.5),     class = b), #mean and sd of benefit
-#  prior(normal(6.71, 30.5),     class = Intercept), #mean and sd of benefit
-#  prior(normal(30.5, 15.25),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
+#  prior(normal(0, 1),     class = b), #mean and sd of z-scored benefit
+#  prior(normal(0, 1),     class = Intercept), #mean and sd of z-scored benefit
+#  prior(normal(1, .5),    class = sigma) #mean: sd of z-scored benefit. sigma: sd of z-scored benefit/2.
 #)
 
-# Scaled priors
-#prior_mod_5 <- c(
-#  prior(normal(0, 1),     class = b), #mean and sd of outcome
-#  prior(normal(0, 1),     class = Intercept), #mean and sd of outcome
-#  prior(normal(1, .5),    class = sigma) #mean: sd of outcome. sigma: sd of outcome/2.
-#)
 
 # Fitting the model samplig only from priors, in order to check the quality of the priors
 mod_5_0 <- brm(
@@ -1101,10 +1108,9 @@ mcmc_rank_overlay(mod_5_1,
 
 
 # Hypothesis testing
-hypothesis(mod_5_1,"mean_Susceptibility > 0") #I hypothize that there is an effect of mean susceptibility on benefit - which is definitely the case
+hypothesis(mod_5_1,"mean_Susceptibility > 0") # I hypothize that there is an effect of mean susceptibility on benefit - which is definitely the case
 
-# Plot model learning, using the best hypotheses
-plot(hypothesis(mod_5_1,"Intercept > 0"))
+# Plot model learning, using the best hypothesis
 plot(hypothesis(mod_5_1,"mean_Susceptibility > 0"))
 
 # Plot conditional effects
@@ -1123,10 +1129,18 @@ Excluding participant 39
 set.seed(555)
 
 
+# Show again why it seems like a good idea
+plot(df_meta$Benefit) # Participant 39 looks like an outlier
+
+# Look at the average benefit in z-scores - participant 39 definitely looks like an outlier
+print(scale(df_meta$Benefit, center = TRUE, scale = TRUE))
+
+
+
 # Chose the variables needed
 df_6 <- data_1 %>% select(Gender, Benefit)
 
-# Scale benefit
+# Z-score benefit
 #df_6$Benefit <- scale(df_6$Benefit, center = TRUE, scale = TRUE)
 
 # Remove participant 39
@@ -1146,16 +1160,16 @@ mean(df_6$Benefit)
 sd(df_6$Benefit)
  
 
-# Priors, non-scaled
+# Priors, unscaled
 prior_mod_6 <- c(
   prior(normal(6.71, 30.5),     class = b), #mean and sd of benefit
   prior(normal(30.5, 15.25),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
 )
 
-# Scaled priors
+# Z-scored priors
 #prior_mod_6 <- c(
-#  prior(normal(0, 1),     class = b), #mean and sd of Benefit 
-#  prior(normal(1, .5),    class = sigma) #mean: sd of Benefit. sigma: sd of Benefit/2.
+#  prior(normal(0, 1),     class = b), #mean and sd of z-scored benefit 
+#  prior(normal(1, .5),    class = sigma) #mean: sd of z-scored benefit. sigma: sd of z-scored benefit/2.
 #)
 
 
