@@ -1,0 +1,59 @@
+---
+title: "Data cleaning"
+author: "Sophia Kleist Karlson"
+date: "26 maj 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Data cleaning
+
+```{r}
+library(pacman)
+p_load(tidyverse)
+
+setwd("C:/Users/Sophia/Documents/Karsten projekt/exam/data")
+
+data <- read_csv("raw_data.csv") #load the data
+
+
+new_df <- as.data.frame(t(data)) #swap the columns and rows
+
+any(is.na(new_df)) #check if there is any NA's in the df
+
+row.names(new_df) <- NULL #remove the rownames (reflecting subject id, but in a stupid way)
+
+new_df$Subject_ID <- rep(1:39, each=240) #make a new column with subject id - 39 subjects, each with 240 trials
+
+new_df <- as.tibble(new_df) #make the df into a tibble
+
+
+colnames(new_df) <- c("Age", #rename columns
+                      "Gender", 
+                      "Session", 
+                      "Trial", 
+                      "Advisor", 
+                      "stm_Coh",
+                      "stm_Dir",
+                      "Decicion_1",
+                      "Confidence_1",
+                      "RT_1",
+                      "Accuracy_1",
+                      "Score_1",
+                      "Score_2",
+                      "Decision_2",
+                      "Confidence_2",
+                      "RT_2",
+                      "Accuracy_2",
+                      "avd_Decision",
+                      "adv_Confidence",
+                      "adv_Accuracy",
+                      "Subject_ID")
+
+write.csv(new_df,"cleaned_data.csv") #save the data
+
+```
