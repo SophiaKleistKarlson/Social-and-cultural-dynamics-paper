@@ -1,0 +1,159 @@
+---
+title: 'Extra: Model 6'
+author: "Sophia Kleist Karlson"
+date: "26 maj 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Extra model
+
+Mod 6
+Benefit ~ 0 + Gender
+Excluding participant 39
+
+```{r}
+setwd("~/Karsten projekt/exam/data")
+
+library(pacman)
+p_load(tidyverse, brms, bayesplot)
+
+
+df_meta <- read_csv("meta_measures.csv") # we use Meta-measures because it has the columns calibration, susceptibiilty and gender
+df_meta$X1 <- NULL #removing the first unnecessary column
+
+data_1 <- read_csv("data_1.csv") # this dataframe also has benefit (1 per trial)
+data_1$X1 <- NULL
+
+#checking the class of gender in the two dataframes - as they are numeric and integer, I change them to factor
+class(df_meta$Gender)
+df_meta$Gender <- as.factor(df_meta$Gender)
+
+class(data_1$Gender)
+data_1$Gender <- as.factor(data_1$Gender)
+
+
+# Set color scheme to red for the rest of the script
+color_scheme_set("red")
+
+
+# Show again why it seems like a good idea
+plot(df_meta$Benefit) # Participant 39 looks like an outlier
+
+# Look at the average benefit in z-scores - participant 39 definitely looks like an outlier
+print(scale(df_meta$Benefit, center = TRUE, scale = TRUE))
+
+```
+
+
+
+Running the model
+
+```{r}
+# Set seed so that the analysis can be re-run and give the same results
+set.seed(555)
+
+
+# Chose the variables needed
+df_6 <- data_1 %>% select(Gender, Benefit)
+
+# Z-score benefit
+#df_6$Benefit <- scale(df_6$Benefit, center = TRUE, scale = TRUE)
+
+# Remove participant 39
+df_6 <- df_6[-c(9121:9360), ]
+
+
+# Define the model
+mod_6 <- bf(Benefit ~ 0 + Gender)
+
+
+# Figure out what priors we'll need:
+get_prior(mod_6, family = gaussian, df_3)# We get Beta and Sigma as usual
+
+# To get an idea of how to put the priors
+range(df_6$Benefit)
+mean(df_6$Benefit) 
+sd(df_6$Benefit)
+ 
+
+# Priors, unscaled
+prior_mod_6 <- c(
+  prior(normal(6.71, 30.5),     class = b), #mean and sd of benefit
+  prior(normal(30.5, 15.25),    class = sigma) #mean: sd of benefit. sigma: sd of benefit/2
+)
+
+# Z-scored priors
+#prior_mod_6 <- c(
+#  prior(normal(0, 1),     class = b), #mean and sd of z-scored benefit 
+#  prior(normal(1, .5),    class = sigma) #mean: sd of z-scored benefit. sigma: sd of z-scored benefit/2.
+#)
+
+
+# Fitting the model samplig only from priors, in order to check the quality of the priors
+mod_6_0 <- brm(
+  formula = mod_6, 
+  prior = prior_mod_6,
+  data = df_6,
+  chains = 2,
+  cores = 2,
+  sample_prior = "only"
+)
+
+# Prior predictive check
+pp_check(mod_6_0, nsamples = 1000) # 
+
+
+# The actual model:
+mod_6_1 <- brm(
+  formula = mod_6, 
+  prior = prior_mod_6,
+  data = df_6,
+  chains = 2,
+  cores = 2,
+  sample_prior = T,
+  iter = 4000,
+  control = list(adapt_delta=0.99, max_treedepth=20)
+)
+
+# Posterior predictive check 
+pp_check(mod_6_1, nsamples = 1000)
+
+
+# Model summary
+summary(mod_6_1)
+
+
+# Trace plots
+mcmc_trace(mod_6_1,
+           pars = c("b_Gender0", "b_Gender1", 
+           "sigma")) + 
+  theme_classic()
+ 
+# Rank trace plots
+mcmc_rank_overlay(mod_6_1, 
+                  pars = c("b_Gender0", "b_Gender1")) + 
+  theme_classic()
+
+
+# Hypothesis testing
+hypothesis(mod_6_1,"Gender1 > Gender0") # I hypothized that women have higher benefit than men - which seems to be the case.
+hypothesis(mod_6_1,"Gender1 = Gender0") # Just checking
+
+# Plot model learning, using the best hypothesis
+plot(hypothesis(mod_6_1,"Gender1 > Gender0")) 
+
+# Plot conditional effects
+conditional_effects(mod_6_1)
+```
+
+
+Citing RStudio
+```{r}
+RStudio.Version()
+```
+
